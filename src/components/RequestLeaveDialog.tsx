@@ -31,15 +31,21 @@ import {
   yearOfISO,
   isWorkingDayISO,
 } from "@/lib/leave";
-import { useHolidays } from "@/lib/data";
+import { useHolidays, useEmployees } from "@/lib/data";
 import { useAuth } from "@/lib/auth-context";
 
 /**
- * Self-service leave request for the signed-in employee. Always files against
- * the current user's own profile — employees can't request on behalf of others.
+ * Leave request dialog.
+ *
+ * - **Employees**: files against their own profile.
+ * - **Managers / admins / super admins**: can pick an employee from a
+ *   selector to request on their behalf (the `requested_by` column tracks
+ *   who filed the request).
+ * - **Super admins only**: requesting for *themselves* is blocked — they
+ *   have no leave allowance and can only file on behalf of others.
  */
 export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
-  const { profile } = useAuth();
+  const { profile, isAdmin, isSuperAdmin, isManagement } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("L");
@@ -47,6 +53,14 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
   const [end, setEnd] = useState(fmtISO(new Date()));
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [targetEmployeeId, setTargetEmployeeId] = useState<string>("");
+
+  const employees = useEmployees({ enabled: isManagement });
+
+  // The employee this request is filed for.
+  const selectedEmployeeId = isManagement
+    ? targetEmployeeId || profile?.id || ""
+    : profile?.id || "";
 
   // Public holidays for any year the range might touch, so they're excluded too.
   const hStart = useHolidays(yearOfISO(start));
@@ -57,7 +71,9 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
   );
 
   const submit = async () => {
-    if (!profile?.id) return toast.error("No profile found for your account");
+    if (!selectedEmployeeId) return toast.error("Select an employee to file the request for");
+    if (isSuperAdmin && selectedEmployeeId === profile?.id)
+      return toast.error("Super admins cannot request leave for themselves");
     const s = parseISODate(start);
     const e = parseISODate(end);
     if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()))
@@ -74,12 +90,12 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
     for (const date of eachDayISO(start, end)) {
       if (!isWorkingDayISO(date, holidaySet)) continue; // business days only
       rows.push({
-        employee_id: profile.id,
+        employee_id: selectedEmployeeId,
         date,
         leave_code: code,
         note: note || null,
         status: "pending",
-        requested_by: profile.id,
+        requested_by: profile?.id ?? null,
       });
     }
     if (rows.length === 0)
@@ -92,20 +108,80 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
       .upsert(rows, { onConflict: "employee_id,date" });
     setBusy(false);
     if (error) return toast.error(error.message);
-    toast.success(`Request submitted — ${rows.length} working day${rows.length > 1 ? "s" : ""}`);
+    const targetName =
+      isManagement && selectedEmployeeId !== profile?.id
+        ? ((employees.data ?? []).find((e) => e.id === selectedEmployeeId)?.full_name ?? "employee")
+        : "you";
+    toast.success(
+      `Request submitted for ${targetName} — ${rows.length} working day${rows.length > 1 ? "s" : ""}`,
+    );
     setOpen(false);
     setNote("");
+    setTargetEmployeeId("");
     void qc.invalidateQueries({ queryKey: ["entries", new Date().getFullYear()] });
   };
+
+  // For super admins: only show other employees (not themselves).
+  // For managers: show their team members + themselves.
+  // For employees: no selector (always self).
+  const selectableEmployees = useMemo(() => {
+    if (!isManagement) return [];
+    const list = (employees.data ?? []).filter((e) => e.id !== profile?.id);
+    return list;
+  }, [isManagement, employees.data, profile?.id]);
+
+  // For super admins, pre-select the first available employee so the dialog
+  // isn't in a "no selection" state.
+  const selectedName =
+    isManagement && selectedEmployeeId && selectedEmployeeId !== profile?.id
+      ? (employees.data ?? []).find((e) => e.id === selectedEmployeeId)?.full_name
+      : undefined;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger ?? <Button>Request leave</Button>}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Request leave</DialogTitle>
+          <DialogTitle>
+            {isManagement && targetEmployeeId
+              ? `Request leave for ${selectedName ?? "employee"}`
+              : "Request leave"}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          {isManagement && (
+            <div>
+              <Label>Employee</Label>
+              <Select value={targetEmployeeId} onValueChange={setTargetEmployeeId}>
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      isSuperAdmin
+                        ? "Select employee (required for super admin)"
+                        : "Select employee (or leave blank for yourself)"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {!isSuperAdmin && (
+                    <SelectItem value={profile?.id ?? ""}>
+                      {profile?.full_name ?? "Myself"}
+                    </SelectItem>
+                  )}
+                  {selectableEmployees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isSuperAdmin && !targetEmployeeId && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Super admins can only request leave on behalf of others.
+                </p>
+              )}
+            </div>
+          )}
           <div>
             <Label>Leave type</Label>
             <Select value={code} onValueChange={setCode}>

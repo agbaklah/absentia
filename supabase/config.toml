@@ -1,1 +1,13 @@
-project_id = "gheagnhdzjjoaazwbqyn"
+project_id = "uftjspyyihaqvqxemfnc"
+
+# New accounts sign in immediately — no email confirmation step.
+[auth]
+enabled = true
+# Local dev URL (README). Remote email links are constructed from this.
+site_url = "http://localhost:8080"
+additional_redirect_urls = ["http://localhost:8080", "http://127.0.0.1:8080"]
+# Hosted issuer for this project, so JWT iss claims are correct.
+jwt_issuer = "https://uftjspyyihaqvqxemfnc.supabase.co/auth/v1"
+
+[auth.email]
+enable_confirmations = false

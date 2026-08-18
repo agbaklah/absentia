@@ -5,7 +5,7 @@ export type EmployeeRow = {
   id: string;
   full_name: string;
   email: string;
-  role: "admin" | "manager" | "employee";
+  role: "admin" | "manager" | "employee" | "super_admin";
   team_id: string | null;
   employment_start_date: string;
   active: boolean;
@@ -22,6 +22,7 @@ export type EntryRow = {
   requested_by: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  decision_note: string | null;
 };
 export type HolidayRow = { id: string; date: string; name: string; region: string };
 export type AllowanceRow = {
@@ -43,9 +44,10 @@ export const useTeams = () =>
     },
   });
 
-export const useEmployees = () =>
+export const useEmployees = (opts?: { enabled?: boolean }) =>
   useQuery({
     queryKey: ["employees"],
+    enabled: opts?.enabled ?? true,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
@@ -85,9 +87,10 @@ export const useEntries = (year: number) =>
     },
   });
 
-export const useAllowances = (year: number) =>
+export const useAllowances = (year: number, opts?: { enabled?: boolean }) =>
   useQuery({
     queryKey: ["allowances", year],
+    enabled: opts?.enabled ?? true,
     queryFn: async () => {
       const { data, error } = await supabase.from("leave_allowances").select("*").eq("year", year);
       if (error) throw error;

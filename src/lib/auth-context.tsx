@@ -6,7 +6,7 @@ export type Profile = {
   id: string;
   full_name: string;
   email: string;
-  role: "admin" | "manager" | "employee";
+  role: "admin" | "manager" | "employee" | "super_admin";
   team_id: string | null;
 };
 
@@ -15,6 +15,10 @@ type AuthCtx = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  /** admin or manager — sees the management portal (org-wide MIS + approvals). */
+  isManagement: boolean;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -27,7 +31,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = async (uid: string | undefined) => {
-    if (!uid) { setProfile(null); return; }
+    if (!uid) {
+      setProfile(null);
+      return;
+    }
     const { data } = await supabase
       .from("profiles")
       .select("id, full_name, email, role, team_id")
@@ -39,7 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
       setSession(s);
-      setTimeout(() => { void loadProfile(s?.user.id); }, 0);
+      setTimeout(() => {
+        void loadProfile(s?.user.id);
+      }, 0);
     });
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
@@ -53,8 +62,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: session?.user ?? null,
     profile,
     loading,
-    signOut: async () => { await supabase.auth.signOut(); },
-    refresh: async () => { await loadProfile(session?.user.id); },
+    isManagement:
+      profile?.role === "admin" || profile?.role === "manager" || profile?.role === "super_admin",
+    isAdmin: profile?.role === "admin" || profile?.role === "super_admin",
+    isSuperAdmin: profile?.role === "super_admin",
+    signOut: async () => {
+      await supabase.auth.signOut();
+    },
+    refresh: async () => {
+      await loadProfile(session?.user.id);
+    },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

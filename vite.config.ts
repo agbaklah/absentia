@@ -45,12 +45,12 @@ export default defineConfig(async ({ command, mode }) => {
     server: { host: "::", port: 8080 },
     define: envDefine,
     ...(isDevBuild
-      ? {
+      ? ({
           environments: {
             client: { define: { "process.env.NODE_ENV": JSON.stringify("development") } },
           },
           esbuild: { keepNames: true },
-        }
+        } as UserConfig)
       : {}),
     css: { transformer: "lightningcss" },
     resolve: {

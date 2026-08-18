@@ -1,5 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../src";
+@source not "../.freebuff";
+@source not "./.freebuff";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -59,42 +61,46 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
-  --radius: 0.625rem;
-  /* Forest palette: warm neutral base, deep green primary, amber accent */
-  --background: oklch(0.985 0.006 95);
+  --radius: 0.75rem;
+  /* Forest palette, refined: warm neutral base, deep pine primary, amber accent */
+  --background: oklch(0.97 0.005 145);
   --foreground: oklch(0.22 0.03 155);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.22 0.03 155);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.22 0.03 155);
-  --primary: oklch(0.42 0.11 152);
+  --primary: oklch(0.38 0.1 153);
   --primary-foreground: oklch(0.98 0.01 95);
-  --secondary: oklch(0.94 0.01 95);
-  --secondary-foreground: oklch(0.28 0.03 155);
-  --muted: oklch(0.94 0.01 95);
-  --muted-foreground: oklch(0.5 0.02 155);
+  --secondary: oklch(0.945 0.008 145);
+  --secondary-foreground: oklch(0.28 0.04 155);
+  --muted: oklch(0.945 0.008 145);
+  --muted-foreground: oklch(0.48 0.02 155);
   --accent: oklch(0.72 0.15 60);
-  --accent-foreground: oklch(0.15 0.02 60);
+  --accent-foreground: oklch(0.16 0.03 60);
   --destructive: oklch(0.55 0.22 27);
   --destructive-foreground: oklch(0.98 0.01 95);
-  --border: oklch(0.9 0.01 95);
-  --input: oklch(0.9 0.01 95);
-  --ring: oklch(0.42 0.11 152);
-  --chart-1: oklch(0.42 0.11 152);
+  --border: oklch(0.9 0.012 145);
+  --input: oklch(0.9 0.012 145);
+  --ring: oklch(0.38 0.1 153);
+  --chart-1: oklch(0.38 0.1 153);
   --chart-2: oklch(0.72 0.15 60);
   --chart-3: oklch(0.55 0.22 27);
   --chart-4: oklch(0.55 0.15 250);
   --chart-5: oklch(0.58 0.18 300);
-  --sidebar: oklch(0.16 0.03 155);
-  --sidebar-foreground: oklch(0.94 0.01 95);
+  --sidebar: oklch(0.185 0.028 155);
+  --sidebar-foreground: oklch(0.93 0.012 145);
   --sidebar-primary: oklch(0.72 0.15 60);
-  --sidebar-primary-foreground: oklch(0.15 0.02 60);
-  --sidebar-accent: oklch(0.22 0.03 155);
-  --sidebar-accent-foreground: oklch(0.98 0.01 95);
-  --sidebar-border: oklch(0.28 0.03 155);
+  --sidebar-primary-foreground: oklch(0.16 0.03 60);
+  --sidebar-accent: oklch(0.26 0.035 155);
+  --sidebar-accent-foreground: oklch(0.97 0.008 145);
+  --sidebar-border: oklch(0.28 0.035 155);
   --sidebar-ring: oklch(0.72 0.15 60);
 }
 
@@ -138,8 +144,50 @@
     border-color: var(--color-border);
   }
 
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Subtle scrollbars that match the palette */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.82 0.015 145) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: oklch(0.82 0.015 145);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.72 0.02 145);
+  }
+
+  ::selection {
+    background-color: oklch(0.38 0.1 153 / 0.18);
+  }
+}
+
+/* Numbers align in tables & KPIs */
+@layer components {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Data-dense dashboard helper: a card that fits more content */
+  .card-dense {
+    box-shadow:
+      0 1px 2px oklch(0.2 0.02 155 / 0.04),
+      0 1px 3px oklch(0.2 0.02 155 / 0.06);
   }
 }

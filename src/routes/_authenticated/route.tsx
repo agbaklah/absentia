@@ -32,9 +32,10 @@ function useNow() {
 }
 
 function AuthenticatedLayout() {
-  const { loading, session } = useAuth();
+  const { loading, session, profile } = useAuth();
   if (loading) return <InitialAppLoadingScreen />;
   if (!session) return <Navigate to="/auth" />;
+  if (profile?.force_password_change) return <Navigate to="/change-password" />;
   return <Shell />;
 }
 

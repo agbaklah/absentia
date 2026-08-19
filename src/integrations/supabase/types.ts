@@ -205,6 +205,7 @@ export type Database = {
           created_at: string;
           email: string;
           employment_start_date: string;
+          force_password_change: boolean;
           full_name: string;
           id: string;
           role: Database["public"]["Enums"]["app_role"];
@@ -216,6 +217,7 @@ export type Database = {
           created_at?: string;
           email: string;
           employment_start_date?: string;
+          force_password_change?: boolean;
           full_name: string;
           id?: string;
           role?: Database["public"]["Enums"]["app_role"];
@@ -227,6 +229,7 @@ export type Database = {
           created_at?: string;
           email?: string;
           employment_start_date?: string;
+          force_password_change?: boolean;
           full_name?: string;
           id?: string;
           role?: Database["public"]["Enums"]["app_role"];

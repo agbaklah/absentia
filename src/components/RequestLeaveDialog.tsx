@@ -33,6 +33,8 @@ import {
 } from "@/lib/leave";
 import { useHolidays, useEmployees } from "@/lib/data";
 import { useAuth } from "@/lib/auth-context";
+import { notifyAdminsOnRequest } from "@/lib/notify-admins";
+import { LEAVE_MAP } from "@/lib/leave";
 
 /**
  * Leave request dialog.
@@ -74,6 +76,7 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
     if (!selectedEmployeeId) return toast.error("Select an employee to file the request for");
     if (isSuperAdmin && selectedEmployeeId === profile?.id)
       return toast.error("Super admins cannot request leave for themselves");
+    if (!note.trim()) return toast.error("Please provide a reason for this leave request");
     const s = parseISODate(start);
     const e = parseISODate(end);
     if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()))
@@ -108,6 +111,29 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
       .upsert(rows, { onConflict: "employee_id,date" });
     setBusy(false);
     if (error) return toast.error(error.message);
+
+    // Notify admins via email (fire-and-forget)
+    const empName =
+      isManagement && selectedEmployeeId !== profile?.id
+        ? ((employees.data ?? []).find((e) => e.id === selectedEmployeeId)?.full_name ?? "employee")
+        : (profile?.full_name ?? "employee");
+    const empEmail =
+      isManagement && selectedEmployeeId !== profile?.id
+        ? ((employees.data ?? []).find((e) => e.id === selectedEmployeeId)?.email ?? "")
+        : (profile?.email ?? "");
+    const leaveLabel = LEAVE_MAP[code as keyof typeof LEAVE_MAP]?.label ?? code;
+    void notifyAdminsOnRequest({
+      data: {
+        employeeName: empName,
+        employeeEmail: empEmail,
+        leaveType: leaveLabel,
+        startDate: start,
+        endDate: end,
+        dayCount: rows.length,
+        note: note || undefined,
+      },
+    });
+
     const targetName =
       isManagement && selectedEmployeeId !== profile?.id
         ? ((employees.data ?? []).find((e) => e.id === selectedEmployeeId)?.full_name ?? "employee")
@@ -214,12 +240,12 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
             </div>
           </div>
           <div>
-            <Label>Reason (optional)</Label>
-            <Textarea value={note} onChange={(e) => setNote(e.target.value)} />
+            <Label>Reason</Label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Please provide a reason for this leave request" required />
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={busy}>
+          <Button onClick={submit} disabled={busy || !note.trim()}>
             {busy ? "Submitting…" : "Submit request"}
           </Button>
         </DialogFooter>

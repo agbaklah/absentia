@@ -45,6 +45,7 @@ import {
 import { toRequests, groupEntries, nextDay } from "@/lib/requests-util";
 import { useAuth } from "@/lib/auth-context";
 import { RequestLeaveDialog } from "@/components/RequestLeaveDialog";
+import { notifyAdminsOnRequest } from "@/lib/notify-admins";
 import { PageHeader } from "@/components/PageHeader";
 import { InitialsAvatar } from "@/components/InitialsAvatar";
 import { cn } from "@/lib/utils";
@@ -563,6 +564,7 @@ function ManagementRequestDialog() {
       return toast.error("Choose valid start and end dates");
     if (e < s) return toast.error("End date is before start date");
     if (!empId) return toast.error("Choose an employee");
+    if (!note.trim()) return toast.error("Please provide a reason for this leave request");
     const rows = [];
     for (const date of eachDayISO(start, end)) {
       if (!isWorkingDayISO(date, holidaySet)) continue; // business days only
@@ -583,6 +585,22 @@ function ManagementRequestDialog() {
       .from("leave_entries")
       .upsert(rows, { onConflict: "employee_id,date" });
     if (error) return toast.error(error.message);
+
+    // Notify admins via email (fire-and-forget)
+    const emp = (employees.data ?? []).find((e) => e.id === empId);
+    const leaveLabel = LEAVE_MAP[code as keyof typeof LEAVE_MAP]?.label ?? code;
+    void notifyAdminsOnRequest({
+      data: {
+        employeeName: emp?.full_name ?? "employee",
+        employeeEmail: emp?.email ?? "",
+        leaveType: leaveLabel,
+        startDate: start,
+        endDate: end,
+        dayCount: rows.length,
+        note: note || undefined,
+      },
+    });
+
     toast.success(`Request submitted — ${rows.length} working day${rows.length > 1 ? "s" : ""}`);
     setOpen(false);
     void qc.invalidateQueries({ queryKey: ["entries", new Date().getFullYear()] });
@@ -639,12 +657,12 @@ function ManagementRequestDialog() {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Reason (optional)</Label>
-            <Textarea value={note} onChange={(e) => setNote(e.target.value)} />
+            <Label>Reason</Label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Please provide a reason for this leave request" required />
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={submit}>Submit</Button>
+          <Button onClick={submit} disabled={!note.trim()}>Submit</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

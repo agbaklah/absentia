@@ -33,3 +33,8 @@ dist-ssr
 
 # Environment secrets
 .env
+.vercel
+
+# Tool temp dirs
+.freebuff/
+supabase/.temp/

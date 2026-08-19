@@ -59,12 +59,15 @@ export function AppSidebar() {
     !isManagement && !scopeId ? 0 : pendingRequestCount(entries.data ?? [], scopeId);
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <div className="flex items-center gap-2.5 px-2 py-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
-            <SperoLogo size={28} />
+      <SidebarHeader className="overflow-hidden">
+        <div className="flex items-center gap-2.5 px-2 py-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
+            <SperoLogo
+              size={28}
+              className="group-data-[collapsible=icon]:!h-5 group-data-[collapsible=icon]:!w-5"
+            />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <div className="truncate text-sm font-semibold tracking-tight">SPERO MIS</div>
             <div className="truncate text-[11px] text-sidebar-foreground/60">Leave & Absence</div>
           </div>
@@ -97,13 +100,13 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
-        <div className="flex items-center gap-2.5 rounded-lg bg-sidebar-accent/60 px-2 py-2">
+      <SidebarFooter className="overflow-hidden">
+        <div className="flex items-center gap-2.5 rounded-lg bg-sidebar-accent/60 px-2 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
           <InitialsAvatar
             name={profile?.full_name ?? "User"}
-            className="h-8 w-8 shrink-0 ring-2 ring-sidebar-border"
+            className="h-8 w-8 shrink-0 ring-2 ring-sidebar-border group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7"
           />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
             <div className="truncate text-xs font-medium">{profile?.full_name ?? "Signed in"}</div>
             <div className="truncate text-[10px] uppercase tracking-wide text-sidebar-foreground/60">
               {roleLabel[profile?.role ?? "employee"] ?? "Employee"}
@@ -113,7 +116,7 @@ export function AppSidebar() {
             size="icon"
             variant="ghost"
             onClick={() => void signOut()}
-            className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden"
           >
             <LogOut className="h-4 w-4" />
             <span className="sr-only">Sign out</span>

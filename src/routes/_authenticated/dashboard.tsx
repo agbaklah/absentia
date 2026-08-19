@@ -101,7 +101,7 @@ function AdminDashboard() {
         ? Number(a.vacation_allowance_days) +
           Number(a.carried_over_days) +
           Number(a.adjustment_days)
-        : 24;
+        : 21;
     }
     const today = fmtISO(new Date());
     const outToday = filteredEntries.filter((e) => e.date === today).length;
@@ -147,7 +147,7 @@ function AdminDashboard() {
         ? Number(a.vacation_allowance_days) +
           Number(a.carried_over_days) +
           Number(a.adjustment_days)
-        : 24;
+        : 21;
       const taken = (entries.data ?? [])
         .filter((e) => e.employee_id === emp.id && e.status === "approved")
         .reduce((s, e) => {

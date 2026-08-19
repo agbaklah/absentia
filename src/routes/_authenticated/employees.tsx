@@ -204,7 +204,7 @@ function EmployeesPage() {
                     key={e.id}
                     className={`border-t transition-colors hover:bg-muted/30 ${view === e.id ? "bg-muted/40" : ""}`}
                   >
-                    <td className="px-3 py-2.5">
+                    <td className="px-3 py-2.5 align-middle">
                       <button
                         type="button"
                         onClick={() => openEmployee(e.id)}
@@ -220,7 +220,7 @@ function EmployeesPage() {
                         </div>
                       </button>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-3 py-2.5 align-middle">
                       {isAdmin ? (
                         <Select
                           value={e.team_id ?? ""}
@@ -242,7 +242,7 @@ function EmployeesPage() {
                         <span>{team?.name ?? "—"}</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-3 py-2.5 align-middle">
                       {isAdmin && canManageRole(isSuperAdmin, e.role) ? (
                         <Select value={e.role} onValueChange={(v) => changeRole(e.id, v as Role)}>
                           <SelectTrigger className="h-8 w-32">
@@ -263,46 +263,48 @@ function EmployeesPage() {
                         </Badge>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap">
                       <span className="tabular font-medium">{leave.requests}</span>
                       <span className="text-muted-foreground">
                         {" "}
                         req · {leave.days} day{leave.days !== 1 ? "s" : ""}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{e.employment_start_date}</td>
-                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                      <Button variant="ghost" size="sm" onClick={() => openEmployee(e.id)}>
-                        <Eye className="h-3.5 w-3.5" />
-                        View
-                      </Button>
-                      {isAdmin && e.auth_user_id && canManageRole(isSuperAdmin, e.role) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            isSuperAdmin ? setResetTarget(e) : sendPasswordReset(e.email)
-                          }
-                        >
-                          Reset
+                    <td className="px-3 py-2.5 align-middle text-muted-foreground">{e.employment_start_date}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openEmployee(e.id)}>
+                          <Eye className="h-3.5 w-3.5" />
+                          View
                         </Button>
-                      )}
-                      {canManageRole(isSuperAdmin, e.role) ? (
-                        <Button variant="ghost" size="sm" onClick={() => softDelete(e.id)}>
-                          Archive
-                        </Button>
-                      ) : null}
-                      {isSuperAdmin && e.role !== "super_admin" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setDeleteTarget(e)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Delete
-                        </Button>
-                      )}
+                        {isAdmin && e.auth_user_id && canManageRole(isSuperAdmin, e.role) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              isSuperAdmin ? setResetTarget(e) : sendPasswordReset(e.email)
+                            }
+                          >
+                            Reset
+                          </Button>
+                        )}
+                        {canManageRole(isSuperAdmin, e.role) ? (
+                          <Button variant="ghost" size="sm" onClick={() => softDelete(e.id)}>
+                            Archive
+                          </Button>
+                        ) : null}
+                        {isSuperAdmin && e.role !== "super_admin" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(e)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

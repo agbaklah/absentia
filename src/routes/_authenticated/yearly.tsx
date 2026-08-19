@@ -42,7 +42,7 @@ function Yearly() {
         (cat as Record<string, number>)[t.category] += t.days;
       }
       const a = alwMap.get(emp.id);
-      const allowance = a ? Number(a.vacation_allowance_days) : 24;
+      const allowance = a ? Number(a.vacation_allowance_days) : 21;
       const carry = a ? Number(a.carried_over_days) : 0;
       const adj = a ? Number(a.adjustment_days) : 0;
       const remaining = allowance + carry + adj - cat.vacation;

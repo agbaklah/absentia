@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 function SettingsPage() {
   const { loading: authLoading, isManagement } = useAuth();
-  const [defAllow, setDefAllow] = useState(24);
+  const [defAllow, setDefAllow] = useState(21);
   const [carryCap, setCarryCap] = useState(5);
   const [maxAbs, setMaxAbs] = useState(3);
   const [sickTh, setSickTh] = useState(8);

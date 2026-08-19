@@ -7,11 +7,22 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { InitialsAvatar } from "@/components/InitialsAvatar";
 import { useEntries, useTeams, useAllowances, type EmployeeRow, type EntryRow } from "@/lib/data";
 import { LEAVE_MAP, fmtDayShort } from "@/lib/leave";
 import { groupEntries } from "@/lib/requests-util";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Mail, Users } from "lucide-react";
 
 const statusVariant: Record<EntryRow["status"], "default" | "secondary" | "destructive"> = {
@@ -47,8 +58,10 @@ export function EmployeeDetailDrawer({
   onClose: () => void;
 }) {
   const year = new Date().getFullYear();
+  const { isAdmin } = useAuth();
   const teams = useTeams();
   const entries = useEntries(year);
+  const qc = useQueryClient();
   // Only fetch allowances once there's an employee to show.
   const allowances = useAllowances(year, { enabled: !!employee });
 
@@ -68,7 +81,7 @@ export function EmployeeDetailDrawer({
     const a = (allowances.data ?? []).find((x) => x.employee_id === employee?.id);
     const allowance = a
       ? Number(a.vacation_allowance_days) + Number(a.carried_over_days) + Number(a.adjustment_days)
-      : 24;
+      : 21;
     const vacation = sum("vacation");
     return {
       allowance,
@@ -104,31 +117,66 @@ export function EmployeeDetailDrawer({
     [mine],
   );
 
+  const changeTeam = async (id: string, teamId: string) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ team_id: teamId || null })
+      .eq("id", id);
+    if (error) return toast.error(error.message);
+    const teamName = (teams.data ?? []).find((t) => t.id === teamId)?.name ?? "Unassigned";
+    toast.success(`Moved to ${teamName}`);
+    void qc.invalidateQueries({ queryKey: ["employees"] });
+  };
+
   return (
     <Sheet open={!!employee} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         {employee && (
           <>
             <SheetHeader className="border-b pb-4">
-              <div className="flex items-start gap-3">
+              <div className="flex items-center gap-3">
                 <InitialsAvatar name={employee.full_name} className="h-12 w-12 text-base" />
-                <div className="min-w-0 flex-1 pr-6">
-                  <SheetTitle className="text-lg">{employee.full_name}</SheetTitle>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <SheetTitle className="text-lg truncate">{employee.full_name}</SheetTitle>
+                    <Badge variant={roleTone[employee.role] ?? "secondary"} className="shrink-0">
+                      {roleLabel[employee.role] ?? employee.role}
+                    </Badge>
+                  </div>
                   <SheetDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="inline-flex items-center gap-1">
                       <Mail className="h-3 w-3" />
                       {employee.email}
                     </span>
                     <span className="text-muted-foreground/50">·</span>
-                    <span className="inline-flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {team?.name ?? "Unassigned"}
-                    </span>
+                    {isAdmin ? (
+                      <Select
+                        value={employee.team_id ?? ""}
+                        onValueChange={(v) => changeTeam(employee.id, v)}
+                      >
+                        <SelectTrigger
+                          className="h-6 w-auto min-w-[8rem] border-0 bg-transparent p-0 text-xs text-muted-foreground hover:bg-muted"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <SelectValue placeholder="Unassigned" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Unassigned</SelectItem>
+                          {(teams.data ?? []).map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {team?.name ?? "Unassigned"}
+                      </span>
+                    )}
                   </SheetDescription>
                 </div>
-                <Badge variant={roleTone[employee.role] ?? "secondary"}>
-                  {roleLabel[employee.role] ?? employee.role}
-                </Badge>
               </div>
             </SheetHeader>
 

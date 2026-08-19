@@ -1,11 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
+import nodemailer from "nodemailer";
 
 /**
  * Sends email notifications to all active admins / super admins when a leave
- * request is submitted.  Uses the Resend API if a RESEND_API_KEY env var is
- * set; otherwise falls back to console logging so the app still works in dev.
+ * request is submitted.  Uses SMTP if the required env vars are set;
+ * otherwise falls back to console logging so the app still works in dev.
  *
- * Called from the client after a successful leave_entries insert.
+ * Required env vars for SMTP:
+ *   SMTP_HOST     – e.g. "smtp.gmail.com" or "smtp.office365.com"
+ *   SMTP_PORT     – e.g. 587 (TLS) or 465 (SSL)
+ *   SMTP_USER     – login username / email
+ *   SMTP_PASS     – login password or app-specific password
+ *   EMAIL_FROM    – sender address, e.g. "SPERO MIS <notifications@verve-energyresources.com>"
  */
 export const notifyAdminsOnRequest = createServerFn({ method: "POST" })
   .validator(
@@ -57,40 +63,45 @@ export const notifyAdminsOnRequest = createServerFn({ method: "POST" })
       .filter(Boolean)
       .join("\n");
 
-    const apiKey = process.env.RESEND_API_KEY;
+    // --- SMTP config ---
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = Number(process.env.SMTP_PORT) || 587;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
     const fromEmail =
       process.env.EMAIL_FROM || "SPERO MIS <notifications@verve-energyresources.com>";
 
-    if (!apiKey) {
+    if (!smtpHost || !smtpUser || !smtpPass) {
       console.log(
-        `[notify-admins] RESEND_API_KEY not set — logging instead of sending.\n` +
+        `[notify-admins] SMTP not configured — logging instead of sending.\n` +
           `  To: ${admins.map((a) => a.email).join(", ")}\n` +
           `  Subject: ${subject}`,
       );
-      return { sent: 0, note: "logged (no API key)" } as const;
+      return { sent: 0, note: "logged (no SMTP config)" } as const;
     }
+
+    // Create a reusable transporter
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465, // true for 465 (SSL), false for 587 (STARTTLS)
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
 
     let sent = 0;
     for (const admin of admins) {
       try {
-        const res = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: fromEmail,
-            to: admin.email,
-            subject,
-            html: body,
-          }),
+        const info = await transporter.sendMail({
+          from: fromEmail,
+          to: admin.email,
+          subject,
+          html: body,
         });
-        if (res.ok) sent++;
-        else
-          console.warn(
-            `[notify-admins] Resend returned ${res.status} for ${admin.email}`,
-          );
+        console.log(`[notify-admins] Email sent to ${admin.email} — ${info.messageId}`);
+        sent++;
       } catch (err) {
         console.warn(`[notify-admins] Failed to email ${admin.email}:`, err);
       }

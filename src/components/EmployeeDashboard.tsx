@@ -67,7 +67,7 @@ export function EmployeeDashboard() {
     const a = (allowances.data ?? []).find((x) => x.employee_id === profile?.id);
     const allowance = a
       ? Number(a.vacation_allowance_days) + Number(a.carried_over_days) + Number(a.adjustment_days)
-      : 24;
+      : 21;
     const vacation = sum("vacation");
     return {
       allowance,

@@ -50,6 +50,7 @@ import { openKpiReport, type ReportMonth } from "@/lib/kpi-report";
 import { PageHeader } from "@/components/PageHeader";
 import { KpiCard } from "@/components/KpiCard";
 import { InitialsAvatar } from "@/components/InitialsAvatar";
+import { TeamAvailabilityHeatmap } from "@/components/TeamAvailabilityHeatmap";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardRoute,
@@ -420,6 +421,9 @@ function AdminDashboard() {
           tone="accent"
         />
       </div>
+
+      {/* Team availability heatmap */}
+      <TeamAvailabilityHeatmap year={year} month={now.getMonth()} teamId={teamId} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="p-4 lg:col-span-2">

@@ -10,7 +10,9 @@ import { LEAVE_TYPES } from "@/lib/leave";
 import { useHolidays, useTeams } from "@/lib/data";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/PageHeader";
-import { CalendarDays, Save, Settings2, Tags, Users } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { fmtISO } from "@/lib/leave";
+import { CalendarDays, Plus, Save, Settings2, Tags, Trash2, Users } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -26,6 +28,10 @@ function SettingsPage() {
   const year = new Date().getFullYear();
   const hols = useHolidays(year);
   const teams = useTeams();
+  const qc = useQueryClient();
+  const [holName, setHolName] = useState("");
+  const [holDate, setHolDate] = useState(fmtISO(new Date()));
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -147,8 +153,23 @@ function SettingsPage() {
           <ul className="divide-y">
             {(hols.data ?? []).map((h) => (
               <li key={h.id} className="flex items-center justify-between py-2 text-sm">
-                <span className="tabular">{h.date}</span>
-                <span className="text-muted-foreground">{h.name}</span>
+                <div className="flex items-center gap-3">
+                  <span className="tabular font-medium">{h.date}</span>
+                  <span className="text-muted-foreground">{h.name}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-destructive hover:text-destructive"
+                  onClick={async () => {
+                    const { error } = await supabase.from("public_holidays").delete().eq("id", h.id);
+                    if (error) return toast.error(error.message);
+                    toast.success(`Removed ${h.name}`);
+                    void qc.invalidateQueries({ queryKey: ["holidays", year] });
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               </li>
             ))}
             {(hols.data ?? []).length === 0 && (
@@ -157,6 +178,46 @@ function SettingsPage() {
               </li>
             )}
           </ul>
+          <div className="mt-3 flex items-end gap-2">
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-xs">Date</Label>
+              <Input
+                type="date"
+                value={holDate}
+                onChange={(e) => setHolDate(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-xs">Holiday name</Label>
+              <Input
+                value={holName}
+                onChange={(e) => setHolName(e.target.value)}
+                placeholder="e.g. Independence Day"
+                className="h-8 text-xs"
+              />
+            </div>
+            <Button
+              size="sm"
+              className="h-8 gap-1"
+              disabled={adding || !holName || !holDate}
+              onClick={async () => {
+                setAdding(true);
+                const { error } = await supabase.from("public_holidays").insert({
+                  date: holDate,
+                  name: holName,
+                });
+                setAdding(false);
+                if (error) return toast.error(error.message);
+                toast.success(`${holName} added`);
+                setHolName("");
+                void qc.invalidateQueries({ queryKey: ["holidays", year] });
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </Button>
+          </div>
         </Card>
       </div>
     </div>

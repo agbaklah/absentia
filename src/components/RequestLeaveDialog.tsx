@@ -33,7 +33,6 @@ import {
 } from "@/lib/leave";
 import { useHolidays, useEmployees } from "@/lib/data";
 import { useAuth } from "@/lib/auth-context";
-import { notifyAdminsOnRequest } from "@/lib/notify-admins";
 import { LEAVE_MAP } from "@/lib/leave";
 
 /**
@@ -111,28 +110,6 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
       .upsert(rows, { onConflict: "employee_id,date" });
     setBusy(false);
     if (error) return toast.error(error.message);
-
-    // Notify admins via email (fire-and-forget)
-    const empName =
-      isManagement && selectedEmployeeId !== profile?.id
-        ? ((employees.data ?? []).find((e) => e.id === selectedEmployeeId)?.full_name ?? "employee")
-        : (profile?.full_name ?? "employee");
-    const empEmail =
-      isManagement && selectedEmployeeId !== profile?.id
-        ? ((employees.data ?? []).find((e) => e.id === selectedEmployeeId)?.email ?? "")
-        : (profile?.email ?? "");
-    const leaveLabel = LEAVE_MAP[code as keyof typeof LEAVE_MAP]?.label ?? code;
-    void notifyAdminsOnRequest({
-      data: {
-        employeeName: empName,
-        employeeEmail: empEmail,
-        leaveType: leaveLabel,
-        startDate: start,
-        endDate: end,
-        dayCount: rows.length,
-        note: note || undefined,
-      },
-    });
 
     const targetName =
       isManagement && selectedEmployeeId !== profile?.id

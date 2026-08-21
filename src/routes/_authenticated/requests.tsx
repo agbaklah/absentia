@@ -45,7 +45,6 @@ import {
 import { toRequests, groupEntries, nextDay } from "@/lib/requests-util";
 import { useAuth } from "@/lib/auth-context";
 import { RequestLeaveDialog } from "@/components/RequestLeaveDialog";
-import { notifyAdminsOnRequest } from "@/lib/notify-admins";
 import { PageHeader } from "@/components/PageHeader";
 import { InitialsAvatar } from "@/components/InitialsAvatar";
 import { cn } from "@/lib/utils";
@@ -585,21 +584,6 @@ function ManagementRequestDialog() {
       .from("leave_entries")
       .upsert(rows, { onConflict: "employee_id,date" });
     if (error) return toast.error(error.message);
-
-    // Notify admins via email (fire-and-forget)
-    const emp = (employees.data ?? []).find((e) => e.id === empId);
-    const leaveLabel = LEAVE_MAP[code as keyof typeof LEAVE_MAP]?.label ?? code;
-    void notifyAdminsOnRequest({
-      data: {
-        employeeName: emp?.full_name ?? "employee",
-        employeeEmail: emp?.email ?? "",
-        leaveType: leaveLabel,
-        startDate: start,
-        endDate: end,
-        dayCount: rows.length,
-        note: note || undefined,
-      },
-    });
 
     toast.success(`Request submitted — ${rows.length} working day${rows.length > 1 ? "s" : ""}`);
     setOpen(false);

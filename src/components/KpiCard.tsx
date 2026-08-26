@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,8 @@ export function KpiCard({
   icon: Icon,
   tone = "primary",
   className,
+  onClick,
+  href,
 }: {
   label: string;
   value: string;
@@ -20,7 +23,10 @@ export function KpiCard({
   icon?: LucideIcon;
   tone?: "primary" | "accent" | "danger" | "info" | "neutral";
   className?: string;
+  onClick?: () => void;
+  href?: string;
 }) {
+  const navigate = useNavigate();
   const tones: Record<string, string> = {
     primary: "bg-emerald-600/10 text-emerald-700",
     accent: "bg-amber-600/10 text-amber-700",
@@ -29,7 +35,14 @@ export function KpiCard({
     neutral: "bg-slate-500/10 text-slate-600",
   };
   return (
-    <Card className="card-dense group relative overflow-hidden p-4">
+    <Card
+      className={cn(
+        "card-dense group relative overflow-hidden p-4 transition-all duration-200",
+        (onClick || href) && "cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm",
+        className,
+      )}
+      onClick={href ? () => navigate({ to: href }) : onClick}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">

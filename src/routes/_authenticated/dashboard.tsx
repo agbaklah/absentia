@@ -419,6 +419,7 @@ function AdminDashboard() {
           value={String(kpis.pending)}
           icon={Users}
           tone="accent"
+          href="/requests"
         />
       </div>
 

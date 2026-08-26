@@ -139,6 +139,7 @@ export function EmployeeDashboard() {
           value={String(stats.pending)}
           icon={Clock3}
           tone="neutral"
+          href="/requests"
         />
       </div>
 

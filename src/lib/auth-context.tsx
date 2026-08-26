@@ -9,6 +9,7 @@ export type Profile = {
   role: "admin" | "manager" | "employee" | "super_admin";
   team_id: string | null;
   force_password_change: boolean;
+  temp_password_expires_at: string | null;
 };
 
 type AuthCtx = {
@@ -38,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const { data } = await supabase
       .from("profiles")
-      .select("id, full_name, email, role, team_id, force_password_change")
+      .select("id, full_name, email, role, team_id, force_password_change, temp_password_expires_at")
       .eq("auth_user_id", uid)
       .maybeSingle();
     setProfile((data as Profile | null) ?? null);

@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { passwordStrength } from "@/lib/password-strength";
 import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
 import { ShieldCheck } from "lucide-react";
+import { completePasswordChange } from "@/lib/complete-password-change";
 
 export const Route = createFileRoute("/change-password")({
   component: ChangePasswordPage,
@@ -28,14 +29,39 @@ function ChangePasswordPage() {
 
   if (loading) return null;
   if (!session) return <Navigate to="/auth" />;
+  if (!profile) return null;
 
   // If the user doesn't need to change their password, go to dashboard
-  if (!profile) return null;
+  if (!profile.force_password_change) return <Navigate to="/dashboard" />;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!valid) return;
     setBusy(true);
+
+    // If the user has a temp password hash (admin reset flow), use the
+    // completePasswordChange server function which handles validation,
+    // expiry checks, hash comparison, session rotation, and flag cleanup.
+    if (profile.temp_password_expires_at) {
+      const result = await completePasswordChange({
+        data: { newPassword: password },
+      });
+      setBusy(false);
+
+      if (result?.error) {
+        return toast.error(result.error);
+      }
+
+      // Server invalidated all sessions — sign out locally and redirect
+      // to sign-in so the user authenticates with their new password.
+      await supabase.auth.signOut();
+      toast.success("Password updated — please sign in with your new password");
+      nav({ to: "/auth" });
+      return;
+    }
+
+    // Fallback: self-service password reset flow (e.g. email reset link).
+    // Keep the original behavior: update password directly and clear the flag.
     const { error } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (error) return toast.error(error.message);

@@ -208,8 +208,11 @@ export type Database = {
           force_password_change: boolean;
           full_name: string;
           id: string;
+          password_changed_at: string | null;
           role: Database["public"]["Enums"]["app_role"];
           team_id: string | null;
+          temp_password_expires_at: string | null;
+          temp_password_hash: string | null;
         };
         Insert: {
           active?: boolean;
@@ -220,8 +223,11 @@ export type Database = {
           force_password_change?: boolean;
           full_name: string;
           id?: string;
+          password_changed_at?: string | null;
           role?: Database["public"]["Enums"]["app_role"];
           team_id?: string | null;
+          temp_password_expires_at?: string | null;
+          temp_password_hash?: string | null;
         };
         Update: {
           active?: boolean;
@@ -232,8 +238,11 @@ export type Database = {
           force_password_change?: boolean;
           full_name?: string;
           id?: string;
+          password_changed_at?: string | null;
           role?: Database["public"]["Enums"]["app_role"];
           team_id?: string | null;
+          temp_password_expires_at?: string | null;
+          temp_password_hash?: string | null;
         };
         Relationships: [
           {

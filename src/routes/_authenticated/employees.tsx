@@ -20,6 +20,12 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,7 +35,7 @@ import { toRequests } from "@/lib/requests-util";
 import { useAuth } from "@/lib/auth-context";
 import { isWorkEmail, WORK_EMAIL_DOMAIN } from "@/lib/work-email";
 import { authErrorMessage } from "@/lib/auth-errors";
-import { rotateUserPassword } from "@/lib/rotate-password";
+import { resetEmployeePassword } from "@/lib/reset-admin-password";
 import { deleteEmployee } from "@/lib/delete-employee";
 import { createEmployeeAccount } from "@/lib/create-employee-account";
 import { passwordStrength } from "@/lib/password-strength";
@@ -37,7 +43,7 @@ import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
 import { PageHeader } from "@/components/PageHeader";
 import { InitialsAvatar } from "@/components/InitialsAvatar";
 import { EmployeeDetailDrawer } from "@/components/EmployeeDetailDrawer";
-import { Eye, Search, UserPlus, Trash2, Copy, CheckCircle2 } from "lucide-react";
+import { Eye, Search, UserPlus, Trash2, Copy, CheckCircle2, KeyRound, Mail } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/employees")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -85,6 +91,7 @@ function EmployeesPage() {
   const [sort, setSort] = useState<"name" | "leave">("name");
   const [resetTarget, setResetTarget] = useState<EmployeeRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EmployeeRow | null>(null);
+  const [emailResetTarget, setEmailResetTarget] = useState<EmployeeRow | null>(null);
 
   // Per-employee leave activity this year: number of requests + total days.
   const leaveByEmp = useMemo(() => {
@@ -157,6 +164,12 @@ function EmployeesPage() {
     if (error) return toast.error(authErrorMessage(error.message));
     toast.success(`Password reset link sent to ${email}`);
   };
+
+  // Determine available password-reset actions for a given employee.
+  const canResetPassword = (e: EmployeeRow) =>
+    isAdmin && e.auth_user_id && canManageRole(isSuperAdmin, e.role);
+  const canUseTempPassword = isSuperAdmin; // only super admins generate temp pwds
+  const canUseEmailReset = true; // all admins can send email reset links
 
   return (
     <div className="space-y-6">
@@ -277,16 +290,33 @@ function EmployeesPage() {
                           <Eye className="h-3.5 w-3.5" />
                           View
                         </Button>
-                        {isAdmin && e.auth_user_id && canManageRole(isSuperAdmin, e.role) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              isSuperAdmin ? setResetTarget(e) : sendPasswordReset(e.email)
-                            }
-                          >
-                            Reset
-                          </Button>
+                        {canResetPassword(e) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <KeyRound className="h-3.5 w-3.5" />
+                                Reset
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {canUseTempPassword && (
+                                <DropdownMenuItem
+                                  onClick={() => setResetTarget(e)}
+                                >
+                                  <KeyRound className="mr-2 h-3.5 w-3.5" />
+                                  Generate temporary password
+                                </DropdownMenuItem>
+                              )}
+                              {canUseEmailReset && (
+                                <DropdownMenuItem
+                                  onClick={() => sendPasswordReset(e.email)}
+                                >
+                                  <Mail className="mr-2 h-3.5 w-3.5" />
+                                  Send reset email
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                         {canManageRole(isSuperAdmin, e.role) ? (
                           <Button variant="ghost" size="sm" onClick={() => softDelete(e.id)}>
@@ -395,7 +425,7 @@ function DeleteEmployeeDialog({
 }
 
 // ---------------------------------------------------------------------------
-// Reset password dialog (super admin sets password directly)
+// Reset password dialog — generates a temporary password on the server
 // ---------------------------------------------------------------------------
 function ResetPasswordDialog({
   employee,
@@ -404,77 +434,145 @@ function ResetPasswordDialog({
   employee: EmployeeRow | null;
   onClose: () => void;
 }) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [confirming, setConfirming] = useState(true);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const qc = useQueryClient();
-  const strength = passwordStrength(password);
-  const valid = strength.score === 4 && password === confirm && password.length > 0;
 
-  const submit = async () => {
-    if (!employee?.auth_user_id || !valid) return;
+  const reset = () => {
+    setConfirming(true);
+    setTempPassword(null);
+    setCopied(false);
+    setBusy(false);
+  };
+
+  const handleClose = () => {
+    reset();
+    onClose();
+  };
+
+  const confirmReset = async () => {
+    if (!employee) return;
     setBusy(true);
     try {
-      const result = await rotateUserPassword({
-        data: { userId: employee.auth_user_id, newPassword: password },
+      const result = await resetEmployeePassword({
+        data: { profileId: employee.id },
       });
       if (result?.error) {
         toast.error(result.error);
       } else {
-        toast.success(`Password updated for ${employee.full_name}`);
-        setPassword("");
-        setConfirm("");
-        onClose();
+        setTempPassword(result.tempPassword ?? null);
+        setConfirming(false);
         void qc.invalidateQueries({ queryKey: ["employees"] });
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update password");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to reset password",
+      );
     } finally {
       setBusy(false);
     }
   };
 
+  const copyPassword = async () => {
+    if (!tempPassword) return;
+    try {
+      await navigator.clipboard.writeText(tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select the text for manual copy
+    }
+  };
+
   return (
-    <Dialog open={employee !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Set password for {employee?.full_name}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="new-password">New password</Label>
-            <Input
-              id="new-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              aria-describedby="password-strength"
-            />
-            <PasswordStrengthMeter password={password} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="confirm-password">Confirm new password</Label>
-            <Input
-              id="confirm-password"
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Repeat the new password"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            The account owner is signed out of all devices and must use this password next.
-          </p>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={!valid || busy}>
-            {busy ? "Updating…" : "Update password"}
-          </Button>
-        </DialogFooter>
+    <Dialog open={employee !== null} onOpenChange={(o) => !o && handleClose()}>
+      <DialogContent className={tempPassword ? "max-w-lg" : undefined}>
+        {tempPassword ? (
+          /* ---- Success: show the temporary password ---- */
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                Password reset for {employee?.full_name}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+                <p className="font-medium">This temporary password will only be shown once.</p>
+                <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs opacity-80">
+                  <li>Share it securely with the employee.</li>
+                  <li>If you lose it, you must generate a new temporary password.</li>
+                </ul>
+              </div>
+
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/40">
+                <p className="mb-2 text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                  Temporary password
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded bg-white px-3 py-2 font-mono text-sm tracking-wide dark:bg-emerald-950">
+                    {tempPassword}
+                  </code>
+                  <Button variant="outline" size="sm" onClick={copyPassword} className="shrink-0">
+                    {copied ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-card p-4 text-sm">
+                <p className="mb-2 font-medium">What happens next:</p>
+                <ol className="list-inside list-decimal space-y-1 text-muted-foreground">
+                  <li>
+                    Share this temporary password with <strong>{employee?.full_name}</strong> via a
+                    secure channel (e.g. in person or encrypted message).
+                  </li>
+                  <li>
+                    The employee logs in at <strong>{window.location.host}</strong> using their email
+                    and this password.
+                  </li>
+                  <li>
+                    On first login, they'll be <strong>forced to choose a new password</strong> before
+                    they can access the dashboard.
+                  </li>
+                </ol>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleClose}>Done</Button>
+            </DialogFooter>
+          </>
+        ) : (
+          /* ---- Confirmation step ---- */
+          <>
+            <DialogHeader>
+              <DialogTitle>Reset password for {employee?.full_name}?</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 text-sm">
+              <p>
+                A cryptographically secure temporary password will be generated. The employee will
+                be required to change it on their next sign-in.
+              </p>
+              <p className="text-muted-foreground">
+                This will sign out the employee from all devices.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={handleClose} disabled={busy}>
+                Cancel
+              </Button>
+              <Button onClick={confirmReset} disabled={busy}>
+                {busy ? "Generating…" : "Confirm reset"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

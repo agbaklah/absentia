@@ -16,6 +16,7 @@ function entry(overrides: Partial<EntryRow>): EntryRow {
     approved_by: null,
     approved_at: null,
     decision_note: null,
+    attachment_url: null,
     ...overrides,
   };
 }

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,8 +25,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Info, CheckCircle2, XCircle, Clock3 } from "lucide-react";
-import { useEntries, useEmployees, useTeams, useHolidays, type EntryRow } from "@/lib/data";
+import { Info, CheckCircle2, XCircle, Clock3, Upload, X, FileText, Paperclip } from "lucide-react";
+import { useEntries, useEmployees, useTeams, useHolidays, useAllowances, type EntryRow } from "@/lib/data";
 import {
   LEAVE_TYPES,
   LEAVE_MAP,
@@ -434,6 +434,25 @@ function ActivityDetailDialog({
                 </div>
               )}
 
+              {entry.attachment_url && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Doctor's report
+                  </div>
+                  <a
+                    href={supabase.storage
+                      .from("leave-attachments")
+                      .getPublicUrl(entry.attachment_url).data.publicUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex items-center gap-1.5 rounded-md border bg-background p-2 text-sm text-primary hover:underline"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                    View attachment
+                  </a>
+                </div>
+              )}
+
               {entry.decision_note && (
                 <div>
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -546,6 +565,8 @@ function ManagementRequestDialog() {
   const [start, setStart] = useState(fmtISO(new Date()));
   const [end, setEnd] = useState(fmtISO(new Date()));
   const [note, setNote] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { profile } = useAuth();
   const employees = useEmployees();
   const qc = useQueryClient();
@@ -556,6 +577,29 @@ function ManagementRequestDialog() {
     [hStart.data, hEnd.data],
   );
 
+  const isSick = LEAVE_MAP[code as keyof typeof LEAVE_MAP]?.category === "sick";
+  const year = yearOfISO(start);
+  const allowances = useAllowances(year);
+  const sickUsed = useMemo(() => {
+    const entries = qc.getQueryData(["entries", year]) as
+      | { employee_id: string; leave_code: string; status: string }[]
+      | undefined;
+    if (!entries || !empId) return 0;
+    return entries
+      .filter(
+        (e) =>
+          e.employee_id === empId &&
+          LEAVE_MAP[e.leave_code as keyof typeof LEAVE_MAP]?.category === "sick" &&
+          e.status !== "rejected",
+      )
+      .reduce((s, e) => s + (LEAVE_MAP[e.leave_code as keyof typeof LEAVE_MAP]?.days ?? 1), 0);
+  }, [qc, year, empId]);
+  const sickAllowance = useMemo(() => {
+    const a = (allowances.data ?? []).find((x) => x.employee_id === empId);
+    return a?.sick_leave_allowance_days ?? 5;
+  }, [allowances.data, empId]);
+  const sickRemaining = sickAllowance - sickUsed;
+
   const submit = async () => {
     const s = parseISODate(start);
     const e = parseISODate(end);
@@ -564,7 +608,28 @@ function ManagementRequestDialog() {
     if (e < s) return toast.error("End date is before start date");
     if (!empId) return toast.error("Choose an employee");
     if (!note.trim()) return toast.error("Please provide a reason for this leave request");
-    const rows = [];
+
+    if (isSick) {
+      const sickDays = eachDayISO(start, end).filter(
+        (d) => !isWorkingDayISO(d, holidaySet),
+      ).length;
+      if (sickDays > sickRemaining)
+        return toast.error(
+          `Sick leave exceeds remaining allowance. ${sickRemaining.toFixed(1)} day${sickRemaining !== 1 ? "s" : ""} remaining of ${sickAllowance} annual limit.`,
+        );
+      if (!file)
+        return toast.error("A doctor's report attachment is required for sick leave.");
+    }
+
+    const rows: {
+      employee_id: string;
+      date: string;
+      leave_code: string;
+      note: string | null;
+      status: "pending";
+      requested_by: string | null;
+      attachment_url: string | null;
+    }[] = [];
     for (const date of eachDayISO(start, end)) {
       if (!isWorkingDayISO(date, holidaySet)) continue; // business days only
       rows.push({
@@ -574,12 +639,29 @@ function ManagementRequestDialog() {
         note: note || null,
         status: "pending" as const,
         requested_by: profile?.id ?? null,
+        attachment_url: null,
       });
     }
     if (rows.length === 0)
       return toast.error(
         "That range has no working days (weekends and public holidays are excluded).",
       );
+
+    // Upload attachment if sick leave
+    let attachmentUrl: string | null = null;
+    if (isSick && file && profile?.id) {
+      const ext = file.name.split(".").pop() ?? "bin";
+      const path = `${profile.id}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("leave-attachments")
+        .upload(path, file, { contentType: file.type });
+      if (uploadErr) return toast.error(`Upload failed: ${uploadErr.message}`);
+      attachmentUrl = path;
+    }
+    if (attachmentUrl) {
+      for (const row of rows) row.attachment_url = attachmentUrl;
+    }
+
     const { error } = await supabase
       .from("leave_entries")
       .upsert(rows, { onConflict: "employee_id,date" });
@@ -587,6 +669,7 @@ function ManagementRequestDialog() {
 
     toast.success(`Request submitted — ${rows.length} working day${rows.length > 1 ? "s" : ""}`);
     setOpen(false);
+    setFile(null);
     void qc.invalidateQueries({ queryKey: ["entries", new Date().getFullYear()] });
   };
 
@@ -641,9 +724,62 @@ function ManagementRequestDialog() {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Reason</Label>
+            <Label>Reason <span className="text-red-500">*</span></Label>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Please provide a reason for this leave request" required />
           </div>
+          {isSick && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+              <span className="font-medium">Sick leave allowance:</span> {sickRemaining.toFixed(1)} day{sickRemaining !== 1 ? "s" : ""} remaining of {sickAllowance} annual limit.
+            </div>
+          )}
+          {isSick && (
+            <div className="space-y-1.5">
+              <Label>Doctor's report <span className="text-red-500">*</span></Label>
+              {file ? (
+                <div className="flex items-center gap-2 rounded-md border bg-muted/50 p-2">
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 truncate text-sm">{file.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {(file.size / 1024).toFixed(0)} KB
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-red-600"
+                    onClick={() => setFile(null)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex w-full items-center gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/50"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Attach doctor's report (required for sick leave)</span>
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    if (f.size > 5 * 1024 * 1024) {
+                      toast.error("File must be under 5 MB");
+                      return;
+                    }
+                    setFile(f);
+                  }
+                }}
+              />
+              <p className="text-[11px] text-muted-foreground">PDF, JPG, PNG, or DOC — max 5 MB</p>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={!note.trim()}>Submit</Button>

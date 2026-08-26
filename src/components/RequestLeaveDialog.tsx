@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Info } from "lucide-react";
+import { Info, Upload, X, FileText } from "lucide-react";
 import {
   LEAVE_TYPES,
   fmtISO,
@@ -31,9 +31,9 @@ import {
   yearOfISO,
   isWorkingDayISO,
 } from "@/lib/leave";
-import { useHolidays, useEmployees } from "@/lib/data";
+import { useHolidays, useEmployees, useAllowances } from "@/lib/data";
 import { useAuth } from "@/lib/auth-context";
-import { LEAVE_MAP } from "@/lib/leave";
+import { LEAVE_MAP } from "@/lib/leave"
 
 /**
  * Leave request dialog.
@@ -55,6 +55,10 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [targetEmployeeId, setTargetEmployeeId] = useState<string>("");
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isSick = LEAVE_MAP[code as keyof typeof LEAVE_MAP]?.category === "sick";
 
   const employees = useEmployees({ enabled: isManagement });
 
@@ -62,6 +66,29 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
   const selectedEmployeeId = isManagement
     ? targetEmployeeId || profile?.id || ""
     : profile?.id || "";
+
+  // Sick leave allowance tracking
+  const year = yearOfISO(start);
+  const allowances = useAllowances(year);
+  const sickUsed = useMemo(() => {
+    const entries = qc.getQueryData(["entries", year]) as
+      | { employee_id: string; leave_code: string; status: string }[]
+      | undefined;
+    if (!entries || !selectedEmployeeId) return 0;
+    return entries
+      .filter(
+        (e) =>
+          e.employee_id === selectedEmployeeId &&
+          LEAVE_MAP[e.leave_code as keyof typeof LEAVE_MAP]?.category === "sick" &&
+          e.status !== "rejected",
+      )
+      .reduce((s, e) => s + (LEAVE_MAP[e.leave_code as keyof typeof LEAVE_MAP]?.days ?? 1), 0);
+  }, [qc, year, selectedEmployeeId]);
+  const sickAllowance = useMemo(() => {
+    const a = (allowances.data ?? []).find((x) => x.employee_id === selectedEmployeeId);
+    return a?.sick_leave_allowance_days ?? 5;
+  }, [allowances.data, selectedEmployeeId]);
+  const sickRemaining = sickAllowance - sickUsed;
 
   // Public holidays for any year the range might touch, so they're excluded too.
   const hStart = useHolidays(yearOfISO(start));
@@ -76,6 +103,21 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
     if (isSuperAdmin && selectedEmployeeId === profile?.id)
       return toast.error("Super admins cannot request leave for themselves");
     if (!note.trim()) return toast.error("Please provide a reason for this leave request");
+
+    // Sick leave validation
+    if (isSick) {
+      const s = parseISODate(start);
+      const e = parseISODate(end);
+      const sickDays = eachDayISO(start, end).filter(
+        (d) => !isWorkingDayISO(d, holidaySet),
+      ).length;
+      if (sickDays > sickRemaining)
+        return toast.error(
+          `Sick leave exceeds remaining allowance. ${sickRemaining.toFixed(1)} day${sickRemaining !== 1 ? "s" : ""} remaining of ${sickAllowance} annual limit.`,
+        );
+      if (!file)
+        return toast.error("A doctor's report attachment is required for sick leave.");
+    }
     const s = parseISODate(start);
     const e = parseISODate(end);
     if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()))
@@ -88,6 +130,7 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
       note: string | null;
       status: "pending";
       requested_by: string | null;
+      attachment_url: string | null;
     }[] = [];
     for (const date of eachDayISO(start, end)) {
       if (!isWorkingDayISO(date, holidaySet)) continue; // business days only
@@ -98,6 +141,7 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
         note: note || null,
         status: "pending",
         requested_by: profile?.id ?? null,
+        attachment_url: null,
       });
     }
     if (rows.length === 0)
@@ -105,6 +149,27 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
         "That range has no working days (weekends and public holidays are excluded).",
       );
     setBusy(true);
+
+    // Upload attachment if sick leave
+    let attachmentUrl: string | null = null;
+    if (isSick && file && profile?.id) {
+      const ext = file.name.split(".").pop() ?? "bin";
+      const path = `${profile.id}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("leave-attachments")
+        .upload(path, file, { contentType: file.type });
+      if (uploadErr) {
+        setBusy(false);
+        return toast.error(`Upload failed: ${uploadErr.message}`);
+      }
+      attachmentUrl = path;
+    }
+
+    // Set attachment_url on all rows
+    if (attachmentUrl) {
+      for (const row of rows) row.attachment_url = attachmentUrl;
+    }
+
     const { error } = await supabase
       .from("leave_entries")
       .upsert(rows, { onConflict: "employee_id,date" });
@@ -121,6 +186,7 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
     setOpen(false);
     setNote("");
     setTargetEmployeeId("");
+    setFile(null);
     void qc.invalidateQueries({ queryKey: ["entries", new Date().getFullYear()] });
   };
 
@@ -206,6 +272,59 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
               <span>{leaveGuidance(code)}</span>
             </div>
           )}
+          {isSick && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+              <span className="font-medium">Sick leave allowance:</span> {sickRemaining.toFixed(1)} day{sickRemaining !== 1 ? "s" : ""} remaining of {sickAllowance} annual limit.
+            </div>
+          )}
+          {isSick && (
+            <div>
+              <Label>Doctor's report <span className="text-red-500">*</span></Label>
+              {file ? (
+                <div className="flex items-center gap-2 rounded-md border bg-muted/50 p-2">
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 truncate text-sm">{file.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {(file.size / 1024).toFixed(0)} KB
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-red-600"
+                    onClick={() => setFile(null)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex w-full items-center gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/50"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Attach doctor's report (required for sick leave)</span>
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    if (f.size > 5 * 1024 * 1024) {
+                      toast.error("File must be under 5 MB");
+                      return;
+                    }
+                    setFile(f);
+                  }
+                }}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">PDF, JPG, PNG, or DOC — max 5 MB</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Start</Label>
@@ -217,7 +336,7 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
             </div>
           </div>
           <div>
-            <Label>Reason</Label>
+            <Label>Reason <span className="text-red-500">*</span></Label>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Please provide a reason for this leave request" required />
           </div>
         </div>

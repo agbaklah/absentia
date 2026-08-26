@@ -74,6 +74,7 @@ export type Database = {
           carried_over_days: number;
           employee_id: string;
           id: string;
+          sick_leave_allowance_days: number;
           vacation_allowance_days: number;
           year: number;
         };
@@ -82,6 +83,7 @@ export type Database = {
           carried_over_days?: number;
           employee_id: string;
           id?: string;
+          sick_leave_allowance_days?: number;
           vacation_allowance_days?: number;
           year: number;
         };
@@ -90,6 +92,7 @@ export type Database = {
           carried_over_days?: number;
           employee_id?: string;
           id?: string;
+          sick_leave_allowance_days?: number;
           vacation_allowance_days?: number;
           year?: number;
         };
@@ -107,6 +110,7 @@ export type Database = {
         Row: {
           approved_at: string | null;
           approved_by: string | null;
+          attachment_url: string | null;
           created_at: string;
           date: string;
           decision_note: string | null;
@@ -120,6 +124,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null;
           approved_by?: string | null;
+          attachment_url?: string | null;
           created_at?: string;
           date: string;
           decision_note?: string | null;
@@ -133,6 +138,7 @@ export type Database = {
         Update: {
           approved_at?: string | null;
           approved_by?: string | null;
+          attachment_url?: string | null;
           created_at?: string;
           date?: string;
           decision_note?: string | null;

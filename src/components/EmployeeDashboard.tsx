@@ -21,6 +21,7 @@ import { RequestLeaveDialog } from "@/components/RequestLeaveDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { KpiCard } from "@/components/KpiCard";
 import { Plane, Hourglass, Clock3, CalendarDays } from "lucide-react";
+import { LeaveBalanceWidget } from "@/components/LeaveBalanceWidget";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_COLOUR: Record<string, string> = {
@@ -114,6 +115,8 @@ export function EmployeeDashboard() {
       >
         <RequestLeaveDialog />
       </PageHeader>
+
+      <LeaveBalanceWidget />
 
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <KpiCard

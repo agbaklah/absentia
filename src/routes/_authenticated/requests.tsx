@@ -27,6 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Info, CheckCircle2, XCircle, Clock3, Upload, X, FileText, Paperclip } from "lucide-react";
 import { useEntries, useEmployees, useTeams, useHolidays, useAllowances, type EntryRow } from "@/lib/data";
+import { notifyLeaveDecision } from "@/lib/notify-leave-decision";
 import {
   LEAVE_TYPES,
   LEAVE_MAP,
@@ -154,13 +155,35 @@ function ManagementRequests() {
     return { error: null };
   };
 
-  const decide = async (ids: string[], status: "approved" | "rejected", note?: string) => {
+  const decide = async (
+    ids: string[],
+    status: "approved" | "rejected",
+    note?: string,
+    notify?: { employeeId: string; leaveType: string; dates: string },
+  ) => {
     const res = await setStatus(ids, status, note);
     if (res?.error) return toast.error(res.error);
     toast.success(status === "approved" ? "Approved" : "Rejected");
+    // Send email notification (fire-and-forget)
+    if (notify) {
+      void notifyLeaveDecision({
+        data: {
+          employeeId: notify.employeeId,
+          status,
+          leaveType: notify.leaveType,
+          dates: notify.dates,
+          decisionNote: note,
+        },
+      });
+    }
   };
 
-  const reduce = async (approveIds: string[], rejectIds: string[], note?: string) => {
+  const reduce = async (
+    approveIds: string[],
+    rejectIds: string[],
+    note?: string,
+    notify?: { employeeId: string; leaveType: string; approveDates: string; rejectDates: string },
+  ) => {
     const results = await Promise.all([
       setStatus(approveIds, "approved", note),
       setStatus(rejectIds, "rejected", note),
@@ -173,6 +196,31 @@ function ManagementRequests() {
     toast.success(
       `Approved ${approveIds.length} day${approveIds.length !== 1 ? "s" : ""}, rejected ${rejectIds.length}`,
     );
+    // Send email notifications for both approve and reject (fire-and-forget)
+    if (notify) {
+      if (approveIds.length > 0) {
+        void notifyLeaveDecision({
+          data: {
+            employeeId: notify.employeeId,
+            status: "approved",
+            leaveType: notify.leaveType,
+            dates: notify.approveDates,
+            decisionNote: note,
+          },
+        });
+      }
+      if (rejectIds.length > 0) {
+        void notifyLeaveDecision({
+          data: {
+            employeeId: notify.employeeId,
+            status: "rejected",
+            leaveType: notify.leaveType,
+            dates: notify.rejectDates,
+            decisionNote: note,
+          },
+        });
+      }
+    }
   };
 
   return (
@@ -245,7 +293,7 @@ function ManagementRequests() {
                       variant="outline"
                       size="sm"
                       className="text-red-600 hover:text-red-700"
-                      onClick={() => decide(ids, "rejected", comment)}
+                      onClick={() => decide(ids, "rejected", comment, emp ? { employeeId: emp.id, leaveType: t?.label ?? code, dates: `${dates[0]} → ${dates[dates.length - 1]}` } : undefined)}
                     >
                       <XCircle className="h-3.5 w-3.5" />
                       Deny
@@ -254,11 +302,14 @@ function ManagementRequests() {
                       <ReduceDialog
                         req={req}
                         empName={emp?.full_name ?? "employee"}
+                        empId={emp?.id}
+                        leaveType={t?.label ?? code}
+                        dates={dates}
                         comment={comment}
                         onReduce={reduce}
                       />
                     )}
-                    <Button size="sm" onClick={() => decide(ids, "approved", comment)}>
+                    <Button size="sm" onClick={() => decide(ids, "approved", comment, emp ? { employeeId: emp.id, leaveType: t?.label ?? code, dates: `${dates[0]} → ${dates[dates.length - 1]}` } : undefined)}>
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       Approve
                     </Button>
@@ -491,13 +542,24 @@ function Detail({
 function ReduceDialog({
   req,
   empName,
+  empId,
+  leaveType,
+  dates,
   comment,
   onReduce,
 }: {
   req: { items: EntryRow[] };
   empName: string;
+  empId?: string;
+  leaveType: string;
+  dates: string[];
   comment: string;
-  onReduce: (approveIds: string[], rejectIds: string[], note?: string) => Promise<void>;
+  onReduce: (
+    approveIds: string[],
+    rejectIds: string[],
+    note?: string,
+    notify?: { employeeId: string; leaveType: string; approveDates: string; rejectDates: string },
+  ) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [approved, setApproved] = useState<Set<string>>(() => new Set(req.items.map((i) => i.id)));
@@ -513,7 +575,20 @@ function ReduceDialog({
   const apply = async () => {
     const approveIds = req.items.filter((i) => approved.has(i.id)).map((i) => i.id);
     const rejectIds = req.items.filter((i) => !approved.has(i.id)).map((i) => i.id);
-    await onReduce(approveIds, rejectIds, comment);
+    const approveDates = req.items
+      .filter((i) => approved.has(i.id))
+      .map((i) => i.date)
+      .sort();
+    const rejectDates = req.items
+      .filter((i) => !approved.has(i.id))
+      .map((i) => i.date)
+      .sort();
+    await onReduce(approveIds, rejectIds, comment, empId ? {
+      employeeId: empId,
+      leaveType,
+      approveDates: approveDates.length > 0 ? `${approveDates[0]} → ${approveDates[approveDates.length - 1]}` : "",
+      rejectDates: rejectDates.length > 0 ? `${rejectDates[0]} → ${rejectDates[rejectDates.length - 1]}` : "",
+    } : undefined);
     setOpen(false);
   };
 

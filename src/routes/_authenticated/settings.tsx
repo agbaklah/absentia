@@ -12,7 +12,8 @@ import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/PageHeader";
 import { useQueryClient } from "@tanstack/react-query";
 import { fmtISO } from "@/lib/leave";
-import { CalendarDays, Plus, Save, Settings2, Tags, Trash2, Users } from "lucide-react";
+import { CalendarDays, ArrowRightLeft, Plus, Save, Settings2, Tags, Trash2, Users } from "lucide-react";
+import { processYearEndCarryover } from "@/lib/year-end-carryover";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -32,6 +33,8 @@ function SettingsPage() {
   const [holName, setHolName] = useState("");
   const [holDate, setHolDate] = useState(fmtISO(new Date()));
   const [adding, setAdding] = useState(false);
+  const [carryoverBusy, setCarryoverBusy] = useState(false);
+  const nextYear = year + 1;
 
   useEffect(() => {
     void (async () => {
@@ -101,6 +104,46 @@ function SettingsPage() {
             {saving ? "Saving…" : "Save changes"}
           </Button>
         </div>
+      </Card>
+
+      <Card className="card-dense p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <ArrowRightLeft className="h-4 w-4 text-emerald-700" />
+          <div className="text-sm font-medium">Year-End Carryover</div>
+        </div>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Process carryover from {year} to {nextYear}. For each active employee,
+          remaining vacation days are calculated and capped at the carryover limit
+          ({carryCap} days). This creates or updates {nextYear} allowance records.
+        </p>
+        <Button
+          variant="outline"
+          className="gap-2"
+          disabled={carryoverBusy}
+          onClick={async () => {
+            setCarryoverBusy(true);
+            try {
+              const result = await processYearEndCarryover({
+                data: { targetYear: nextYear },
+              });
+              if (result?.error) {
+                toast.error(result.error);
+              } else {
+                toast.success(
+                  `Carryover processed: ${result?.processed} employees, ${result?.capped} capped at ${result?.carryoverCap} days.`
+                );
+                void qc.invalidateQueries({ queryKey: ["allowances", nextYear] });
+              }
+            } catch (e) {
+              toast.error("Carryover failed: " + String(e));
+            } finally {
+              setCarryoverBusy(false);
+            }
+          }}
+        >
+          <ArrowRightLeft className="h-4 w-4" />
+          {carryoverBusy ? "Processing…" : `Process ${year} → ${nextYear} Carryover`}
+        </Button>
       </Card>
 
       <Card className="card-dense p-5">

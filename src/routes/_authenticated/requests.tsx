@@ -288,8 +288,7 @@ function ManagementRequests() {
       <Card className="p-4">
         <div className="mb-3 text-sm font-medium">Recent activity</div>
         <div className="divide-y">
-          {(entries.data ?? [])
-            .slice(-20)
+          {[...(entries.data ?? [])]
             .reverse()
             .map((e) => {
               const emp = (employees.data ?? []).find((x) => x.id === e.employee_id);

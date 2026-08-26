@@ -111,9 +111,9 @@ export function EmployeeDetailDrawer({
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [mine]);
 
-  // Most recent individual entries, newest first.
+  // All individual entries, newest first.
   const recent = useMemo(
-    () => [...mine].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8),
+    () => [...mine].sort((a, b) => b.date.localeCompare(a.date)),
     [mine],
   );
 

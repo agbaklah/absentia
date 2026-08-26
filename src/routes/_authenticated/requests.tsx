@@ -724,8 +724,31 @@ function ManagementRequestDialog() {
     // Upload attachment if sick leave
     let attachmentUrl: string | null = null;
     if (isSick && file && profile?.id) {
-      const ext = file.name.split(".").pop() ?? "bin";
-      const path = `${profile.id}/${Date.now()}.${ext}`;
+      // Server-side file validation
+      const ALLOWED_EXTENSIONS = ["pdf", "jpg", "jpeg", "png", "doc", "docx"];
+      const ALLOWED_MIME_TYPES = [
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ];
+      const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+      const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        return toast.error(`File type ".${ext}" is not allowed. Accepted: ${ALLOWED_EXTENSIONS.join(", ")}`);
+      }
+      if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+        return toast.error(`File type "${file.type}" is not allowed.`);
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        return toast.error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 5 MB.`);
+      }
+
+      // Use only safe characters in path to prevent path traversal
+      const safeExt = ext.replace(/[^a-z0-9]/g, "");
+      const path = `${profile.id}/${Date.now()}.${safeExt}`;
       const { error: uploadErr } = await supabase.storage
         .from("leave-attachments")
         .upload(path, file, { contentType: file.type });

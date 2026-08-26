@@ -16,6 +16,11 @@ import { getRequest } from "@tanstack/react-start/server";
 export const processYearEndCarryover = createServerFn({ method: "POST" })
   .validator((d: { targetYear: number }) => d)
   .handler(async ({ data }) => {
+    // Bounds-check targetYear to prevent abuse
+    const currentYear = new Date().getFullYear();
+    if (data.targetYear < currentYear || data.targetYear > currentYear + 2) {
+      return { error: "Target year must be within 2 years of the current year." } as const;
+    }
     // --- caller auth ---
     const authHeader = getRequest()?.headers.get("authorization") ?? "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";

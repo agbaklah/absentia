@@ -38,6 +38,7 @@ import { authErrorMessage } from "@/lib/auth-errors";
 import { resetEmployeePassword } from "@/lib/reset-admin-password";
 import { deleteEmployee } from "@/lib/delete-employee";
 import { createEmployeeAccount } from "@/lib/create-employee-account";
+import { softDeleteEmployee, changeEmployeeRole, changeEmployeeTeam } from "@/lib/update-employee";
 import { passwordStrength } from "@/lib/password-strength";
 import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
 import { PageHeader } from "@/components/PageHeader";
@@ -133,25 +134,22 @@ function EmployeesPage() {
   });
 
   const softDelete = async (id: string) => {
-    const { error } = await supabase.from("profiles").update({ active: false }).eq("id", id);
-    if (error) return toast.error(error.message);
+    const result = await softDeleteEmployee({ data: { profileId: id } });
+    if (result?.error) return toast.error(result.error);
     toast.success("Employee archived");
     void qc.invalidateQueries({ queryKey: ["employees"] });
   };
 
   const changeRole = async (id: string, role: Role) => {
-    const { error } = await supabase.from("profiles").update({ role }).eq("id", id);
-    if (error) return toast.error(error.message);
+    const result = await changeEmployeeRole({ data: { profileId: id, role } });
+    if (result?.error) return toast.error(result.error);
     toast.success(`Role updated to ${role}`);
     void qc.invalidateQueries({ queryKey: ["employees"] });
   };
 
   const changeTeam = async (id: string, teamId: string) => {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ team_id: teamId || null })
-      .eq("id", id);
-    if (error) return toast.error(error.message);
+    const result = await changeEmployeeTeam({ data: { profileId: id, teamId: teamId || null } });
+    if (result?.error) return toast.error(result.error);
     const teamName = (teams.data ?? []).find((t) => t.id === teamId)?.name ?? "Unassigned";
     toast.success(`Moved to ${teamName}`);
     void qc.invalidateQueries({ queryKey: ["employees"] });

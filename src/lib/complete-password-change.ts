@@ -55,14 +55,14 @@ export const completePasswordChange = createServerFn({ method: "POST" })
 
     // --- if the user has a temp password hash, enforce restrictions ---
     if (profile.force_password_change && profile.temp_password_hash) {
-      // Check expiry
+      // Check expiry — use generic message to prevent account state enumeration
       if (
         profile.temp_password_expires_at &&
         new Date(profile.temp_password_expires_at) < new Date()
       ) {
         return {
           error:
-            "This temporary password has expired. Please contact your administrator for a new one.",
+            "Your temporary password is no longer valid. Please contact your administrator.",
         } as const;
       }
 

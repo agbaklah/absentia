@@ -22,12 +22,26 @@ export const notifyLeaveDecision = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Verify caller is management
+    // Verify caller is management (admin, manager, or super_admin)
     const {
       data: { user: caller },
       error: callerError,
     } = await supabaseAdmin.auth.getUser(token);
     if (callerError || !caller) return { error: "Unauthorized" } as const;
+
+    const { data: callerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("auth_user_id", caller.id)
+      .maybeSingle();
+    if (
+      !callerProfile ||
+      (callerProfile.role !== "admin" &&
+        callerProfile.role !== "manager" &&
+        callerProfile.role !== "super_admin")
+    ) {
+      return { error: "Unauthorized" } as const;
+    }
 
     // Look up the employee's email and name
     const { data: employee, error: empErr } = await supabaseAdmin

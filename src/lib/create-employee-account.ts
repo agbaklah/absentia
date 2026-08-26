@@ -81,7 +81,12 @@ export const createEmployeeAccount = createServerFn({ method: "POST" })
     return { tempPassword, error: null } as const;
   });
 
-/** Generate a 16-char password: upper + lower + digit + symbol, guaranteed. */
+/**
+ * Generate a 16-character temporary password using the Web Crypto API.
+ * Uses an unambiguous character set — excludes visually confusing characters
+ * (0, O, o, 1, l, I). Guarantees at least one from each class (upper, lower,
+ * digit, symbol) to satisfy the portal's password policy.
+ */
 function generateTempPassword(): string {
   const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const lower = "abcdefghjkmnpqrstuvwxyz";
@@ -89,17 +94,23 @@ function generateTempPassword(): string {
   const symbols = "!@#$%^&*?";
   const all = upper + lower + digits + symbols;
 
+  const secureRandom = (max: number): number => {
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    return arr[0] % max;
+  };
+
   // Guarantee at least one from each class
-  const pick = (set: string) => set[Math.floor(Math.random() * set.length)];
+  const pick = (set: string) => set[secureRandom(set.length)];
   const chars = [pick(upper), pick(lower), pick(digits), pick(symbols)];
 
   for (let i = chars.length; i < 16; i++) {
-    chars.push(all[Math.floor(Math.random() * all.length)]);
+    chars.push(all[secureRandom(all.length)]);
   }
 
-  // Shuffle (Fisher-Yates)
+  // Fisher-Yates shuffle using secure randomness
   for (let i = chars.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = secureRandom(i + 1);
     [chars[i], chars[j]] = [chars[j], chars[i]];
   }
   return chars.join("");

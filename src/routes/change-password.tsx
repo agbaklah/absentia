@@ -60,23 +60,22 @@ function ChangePasswordPage() {
       return;
     }
 
-    // Fallback: self-service password reset flow (e.g. email reset link).
-    // Keep the original behavior: update password directly and clear the flag.
-    const { error } = await supabase.auth.updateUser({ password });
+    // Self-service password reset flow (e.g. email reset link).
+    // Use the same server function to ensure server-side validation,
+    // session rotation, and proper flag cleanup.
+    const result = await completePasswordChange({
+      data: { newPassword: password },
+    });
     setBusy(false);
-    if (error) return toast.error(error.message);
 
-    // Clear the force_password_change flag
-    const { error: updateErr } = await supabase
-      .from("profiles")
-      .update({ force_password_change: false })
-      .eq("id", profile.id);
-    if (updateErr) {
-      console.warn("[change-password] Could not clear flag:", updateErr.message);
+    if (result?.error) {
+      return toast.error(result.error);
     }
 
-    toast.success("Password updated — welcome aboard!");
-    nav({ to: "/dashboard" });
+    // Server invalidated all sessions — sign out locally and redirect
+    await supabase.auth.signOut();
+    toast.success("Password updated — please sign in with your new password");
+    nav({ to: "/auth" });
   };
 
   return (

@@ -13,6 +13,7 @@ import {
   BookUser,
   ClipboardCheck,
   UserCircle,
+  PieChart,
 } from "lucide-react";
 import { SperoLogo } from "@/components/SperoLogo";
 import {
@@ -40,6 +41,7 @@ const managementItems = [
   { title: "Yearly Summary", url: "/yearly", icon: BarChart3 },
   { title: "Employees", url: "/employees", icon: Users },
   { title: "Onboarding", url: "/onboarding", icon: ClipboardCheck },
+  { title: "Reports", url: "/reports", icon: PieChart },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

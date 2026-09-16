@@ -27,6 +27,7 @@ const TITLES: Record<string, { label: string; sub?: string }> = {
   "/profile": { label: "My profile" },
   "/directory": { label: "Directory" },
   "/onboarding": { label: "Onboarding" },
+  "/reports": { label: "Reports" },
 };
 
 function useNow() {

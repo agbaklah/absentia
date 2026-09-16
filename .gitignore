@@ -39,3 +39,4 @@ dist-ssr
 .freebuff/
 supabase/.temp/
 supabase/.branches/
+backups/

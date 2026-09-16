@@ -10,7 +10,7 @@ DECLARE
   newp uuid; cl uuid; n int; t uuid;
 BEGIN
   PERFORM pg_temp.as_service();
-  DELETE FROM notifications; DELETE FROM checklists; DELETE FROM employee_private;
+  DELETE FROM notifications; DELETE FROM checklists; DELETE FROM employee_private; DELETE FROM audit_log WHERE entity = 'employee_private';
 
   -- Self edits: allowed for phone, blocked for role/team/title ---------------
   PERFORM pg_temp.as_user('kofi@verve-energyresources.com');

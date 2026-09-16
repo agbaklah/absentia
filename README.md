@@ -1,6 +1,16 @@
 # Absentia
 
-Leave & Absence Management.
+Leave & Absence Management, People records and Petty Cash for Verve Energy
+Resources — a BambooHR-style internal HR system.
+
+Modules: leave requests & approvals · leave policies (accrual, notice, blackout,
+carry-over) · calendar & yearly view · petty cash claims with receipt upload and
+CFO reimbursement · employee records (personal/payout data, documents, job
+history) · onboarding/offboarding checklists · directory & org chart · reports ·
+audit log · in-app + email notifications.
+
+See `docs/ROADMAP.md` for scope and `docs/DEPLOYMENT.md` for local testing and
+production rollout.
 
 ## Development
 
@@ -20,6 +30,8 @@ The dev server runs at http://localhost:8080.
 - `bun run preview` — preview the production build
 - `bun run lint` — run ESLint
 - `bun run format` — format with Prettier
+- `bun test` — unit tests
+- `test/db/run.sh` — database tests against the local Supabase stack
 
 ## Environment
 

@@ -1,5 +1,9 @@
 # Absentia Roadmap — BambooHR-level HR + Petty Cash
 
+**Status (16 Sep 2026): Phases 0–5 built and tested locally; not yet pushed to
+production.** Deferred: hourly leave (day-level + AM/PM half days cover current
+needs), PWA/offline. See `docs/DEPLOYMENT.md` for the rollout checklist.
+
 Target: bring Absentia to parity with BambooHR's Time Off module, add the core of
 its People/Records module, and add a **Petty Cash** reimbursement workflow
 (employees upload receipts → CFO reviews → reimburses).

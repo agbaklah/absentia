@@ -13,6 +13,12 @@ export type EmployeeRow = {
   active: boolean;
   auth_user_id: string | null;
   policy_id: string | null;
+  job_title: string | null;
+  phone: string | null;
+  location: string | null;
+  employment_type: "full_time" | "part_time" | "contract" | "intern";
+  employment_end_date: string | null;
+  custom_fields: Record<string, unknown>;
 };
 export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 export type TeamRow = { id: string; name: string; manager_id: string | null };
@@ -56,7 +62,7 @@ export const useEmployees = (opts?: { enabled?: boolean }) =>
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, full_name, email, role, team_id, employment_start_date, active, auth_user_id, policy_id",
+          "id, full_name, email, role, team_id, employment_start_date, active, auth_user_id, policy_id, job_title, phone, location, employment_type, employment_end_date, custom_fields",
         )
         .eq("active", true)
         .order("full_name");
@@ -320,5 +326,234 @@ export const useAuditLog = (opts: { enabled: boolean; limit?: number }) =>
         .limit(opts.limit ?? 300);
       if (error) throw error;
       return (data ?? []) as AuditRow[];
+    },
+  });
+
+// ---------------------------------------------------------------------------
+// People & records
+// ---------------------------------------------------------------------------
+/** All profiles including archived — for admin views / history lookups. */
+export const useAllProfiles = (opts?: { enabled?: boolean }) =>
+  useQuery({
+    queryKey: ["profiles-all"],
+    enabled: opts?.enabled ?? true,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          "id, full_name, email, role, team_id, employment_start_date, active, auth_user_id, policy_id, job_title, phone, location, employment_type, employment_end_date, custom_fields",
+        )
+        .order("full_name");
+      if (error) throw error;
+      return (data ?? []) as EmployeeRow[];
+    },
+  });
+
+export type PrivateRow = {
+  profile_id: string;
+  date_of_birth: string | null;
+  gender: string | null;
+  address: string | null;
+  personal_email: string | null;
+  emergency_name: string | null;
+  emergency_phone: string | null;
+  emergency_relationship: string | null;
+  national_id_type: string | null;
+  national_id_number: string | null;
+  ssnit_number: string | null;
+  tin: string | null;
+  bank_name: string | null;
+  bank_branch: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  momo_network: string | null;
+  momo_number: string | null;
+  momo_name: string | null;
+  updated_at: string;
+  updated_by: string | null;
+};
+
+export const usePrivateRecord = (profileId: string | null) =>
+  useQuery({
+    queryKey: ["private", profileId],
+    enabled: !!profileId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_private")
+        .select("*")
+        .eq("profile_id", profileId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as PrivateRow | null) ?? null;
+    },
+  });
+
+export type PayoutRow = {
+  profile_id: string;
+  bank_name: string | null;
+  bank_branch: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  momo_network: string | null;
+  momo_number: string | null;
+  momo_name: string | null;
+};
+
+/** Bank / MoMo details for reimbursement (CFO, admin, or the owner). */
+export const usePayoutDetails = (profileId: string | null) =>
+  useQuery({
+    queryKey: ["payout", profileId],
+    enabled: !!profileId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_payout_details")
+        .select("*")
+        .eq("profile_id", profileId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as PayoutRow | null) ?? null;
+    },
+  });
+
+export type HistoryRow = {
+  id: string;
+  profile_id: string;
+  effective_date: string;
+  job_title: string | null;
+  team_id: string | null;
+  employment_type: string | null;
+  change_kind: "hired" | "change" | "promotion" | "transfer" | "left" | "rehired";
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export const useEmploymentHistory = (profileId: string | null) =>
+  useQuery({
+    queryKey: ["history", profileId],
+    enabled: !!profileId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employment_history")
+        .select("*")
+        .eq("profile_id", profileId!)
+        .order("effective_date", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as HistoryRow[];
+    },
+  });
+
+export type DocumentRow = {
+  id: string;
+  profile_id: string;
+  kind: string;
+  title: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  expires_at: string | null;
+  visible_to_employee: boolean;
+  uploaded_by: string | null;
+  uploaded_at: string;
+};
+
+export const useDocuments = (profileId: string | null) =>
+  useQuery({
+    queryKey: ["documents", profileId],
+    enabled: !!profileId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_documents")
+        .select("*")
+        .eq("profile_id", profileId!)
+        .order("uploaded_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as DocumentRow[];
+    },
+  });
+
+export type ChecklistRow = {
+  id: string;
+  profile_id: string;
+  kind: "onboarding" | "offboarding";
+  template_id: string | null;
+  started_at: string;
+  completed_at: string | null;
+};
+export type TaskRow = {
+  id: string;
+  checklist_id: string;
+  title: string;
+  assignee_id: string | null;
+  assignee_role: string | null;
+  due_date: string | null;
+  position: number;
+  done_at: string | null;
+  done_by: string | null;
+};
+
+/** Checklists + tasks visible to the caller (RLS-scoped). */
+export const useChecklists = () =>
+  useQuery({
+    queryKey: ["checklists"],
+    queryFn: async () => {
+      const [c, t] = await Promise.all([
+        supabase.from("checklists").select("*").order("started_at", { ascending: false }),
+        supabase.from("checklist_tasks").select("*").order("position"),
+      ]);
+      if (c.error) throw c.error;
+      if (t.error) throw t.error;
+      return { checklists: (c.data ?? []) as ChecklistRow[], tasks: (t.data ?? []) as TaskRow[] };
+    },
+  });
+
+export type TemplateItem = {
+  title: string;
+  assignee: "employee" | "manager" | "admin" | "cfo";
+  due_days: number;
+};
+export type TemplateRow = {
+  id: string;
+  name: string;
+  kind: "onboarding" | "offboarding";
+  items: TemplateItem[];
+  is_default: boolean;
+};
+
+export const useChecklistTemplates = () =>
+  useQuery({
+    queryKey: ["checklist-templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("checklist_templates")
+        .select("*")
+        .order("kind")
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as unknown as TemplateRow[];
+    },
+  });
+
+export type FieldDef = {
+  key: string;
+  label: string;
+  field_type: "text" | "number" | "date" | "select" | "boolean";
+  options: string[] | null;
+  visible_to: "everyone" | "employee" | "management";
+  position: number;
+};
+
+export const useFieldDefinitions = () =>
+  useQuery({
+    queryKey: ["field-defs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profile_field_definitions")
+        .select("*")
+        .order("position");
+      if (error) throw error;
+      return (data ?? []) as FieldDef[];
     },
   });

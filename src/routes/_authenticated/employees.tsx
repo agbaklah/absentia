@@ -1,4 +1,4 @@
-import { createFileRoute, Navigate, useNavigate, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -245,6 +245,11 @@ function EmployeesPage() {
                         <Eye className="h-3.5 w-3.5" />
                         View
                       </Button>
+                      <Button asChild variant="ghost" size="sm">
+                        <Link to="/employees/$id" params={{ id: e.id }}>
+                          Record
+                        </Link>
+                      </Button>
                       {isAdmin && e.auth_user_id && canManageRole(isSuperAdmin, e.role) && (
                         <Button
                           variant="ghost"
@@ -366,6 +371,7 @@ function NewEmployeeDialog() {
   const [role, setRole] = useState<Role>("employee");
   const [teamId, setTeamId] = useState("");
   const [start, setStart] = useState(fmtISO(new Date()));
+  const [jobTitle, setJobTitle] = useState("");
   const teams = useTeams();
   const { isSuperAdmin } = useAuth();
   const qc = useQueryClient();
@@ -379,11 +385,13 @@ function NewEmployeeDialog() {
       role,
       team_id: teamId || null,
       employment_start_date: start,
+      job_title: jobTitle.trim() || null,
     });
     if (error) return toast.error(error.message);
-    toast.success("Employee added");
+    toast.success("Employee added — onboarding checklist started");
     setOpen(false);
     void qc.invalidateQueries({ queryKey: ["employees"] });
+    void qc.invalidateQueries({ queryKey: ["checklists"] });
   };
 
   return (
@@ -406,6 +414,14 @@ function NewEmployeeDialog() {
           <div className="space-y-1.5">
             <Label>Email</Label>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Job title</Label>
+            <Input
+              value={jobTitle}
+              onChange={(e) => setJobTitle(e.target.value)}
+              placeholder="e.g. Field Engineer"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

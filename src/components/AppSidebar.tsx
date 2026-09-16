@@ -10,6 +10,9 @@ import {
   Receipt,
   Wallet,
   ScrollText,
+  BookUser,
+  ClipboardCheck,
+  UserCircle,
 } from "lucide-react";
 import { SperoLogo } from "@/components/SperoLogo";
 import {
@@ -36,12 +39,20 @@ const managementItems = [
   { title: "Requests", url: "/requests", icon: ClipboardList },
   { title: "Yearly Summary", url: "/yearly", icon: BarChart3 },
   { title: "Employees", url: "/employees", icon: Users },
+  { title: "Onboarding", url: "/onboarding", icon: ClipboardCheck },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 const employeeItems = [
   { title: "My Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "My Requests", url: "/requests", icon: ClipboardList },
+  { title: "My Tasks", url: "/onboarding", icon: ClipboardCheck },
+];
+
+// Available to every role.
+const peopleItems = [
+  { title: "My Profile", url: "/profile", icon: UserCircle },
+  { title: "Directory", url: "/directory", icon: BookUser },
 ];
 
 // Petty cash is available to everyone; the review queue only to CFO/admins.
@@ -98,7 +109,11 @@ export function AppSidebar() {
                 <SidebarMenuItem key={it.url}>
                   <SidebarMenuButton
                     asChild
-                    isActive={path === it.url || path.startsWith(it.url + "/")}
+                    isActive={
+                      path === it.url ||
+                      path.startsWith(it.url + "/") ||
+                      (it.url === "/employees" && path.startsWith("/employees/"))
+                    }
                   >
                     <Link to={it.url}>
                       <it.icon className="h-4 w-4" />
@@ -108,6 +123,23 @@ export function AppSidebar() {
                           {pendingCount}
                         </span>
                       )}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>People</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {peopleItems.map((it) => (
+                <SidebarMenuItem key={it.url}>
+                  <SidebarMenuButton asChild isActive={path === it.url}>
+                    <Link to={it.url}>
+                      <it.icon className="h-4 w-4" />
+                      <span>{it.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

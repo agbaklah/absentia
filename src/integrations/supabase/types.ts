@@ -193,6 +193,341 @@ export type Database = {
           },
         ]
       }
+      checklist_tasks: {
+        Row: {
+          assignee_id: string | null
+          assignee_role: string | null
+          checklist_id: string
+          done_at: string | null
+          done_by: string | null
+          due_date: string | null
+          id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          assignee_role?: string | null
+          checklist_id: string
+          done_at?: string | null
+          done_by?: string | null
+          due_date?: string | null
+          id?: string
+          position?: number
+          title: string
+        }
+        Update: {
+          assignee_id?: string | null
+          assignee_role?: string | null
+          checklist_id?: string
+          done_at?: string | null
+          done_by?: string | null
+          due_date?: string | null
+          id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_tasks_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_tasks_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "checklists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_tasks_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_templates: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean
+          items: Json
+          kind: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          items?: Json
+          kind: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          items?: Json
+          kind?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      checklists: {
+        Row: {
+          completed_at: string | null
+          id: string
+          kind: string
+          profile_id: string
+          started_at: string
+          template_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          kind: string
+          profile_id: string
+          started_at?: string
+          template_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          kind?: string
+          profile_id?: string
+          started_at?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklists_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklists_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_documents: {
+        Row: {
+          expires_at: string | null
+          file_name: string
+          id: string
+          kind: string
+          mime_type: string
+          profile_id: string
+          size_bytes: number
+          storage_path: string
+          title: string
+          uploaded_at: string
+          uploaded_by: string | null
+          visible_to_employee: boolean
+        }
+        Insert: {
+          expires_at?: string | null
+          file_name: string
+          id?: string
+          kind?: string
+          mime_type: string
+          profile_id: string
+          size_bytes: number
+          storage_path: string
+          title: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          visible_to_employee?: boolean
+        }
+        Update: {
+          expires_at?: string | null
+          file_name?: string
+          id?: string
+          kind?: string
+          mime_type?: string
+          profile_id?: string
+          size_bytes?: number
+          storage_path?: string
+          title?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          visible_to_employee?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_documents_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_private: {
+        Row: {
+          address: string | null
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_branch: string | null
+          bank_name: string | null
+          date_of_birth: string | null
+          emergency_name: string | null
+          emergency_phone: string | null
+          emergency_relationship: string | null
+          gender: string | null
+          momo_name: string | null
+          momo_network: string | null
+          momo_number: string | null
+          national_id_number: string | null
+          national_id_type: string | null
+          personal_email: string | null
+          profile_id: string
+          ssnit_number: string | null
+          tin: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          address?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_branch?: string | null
+          bank_name?: string | null
+          date_of_birth?: string | null
+          emergency_name?: string | null
+          emergency_phone?: string | null
+          emergency_relationship?: string | null
+          gender?: string | null
+          momo_name?: string | null
+          momo_network?: string | null
+          momo_number?: string | null
+          national_id_number?: string | null
+          national_id_type?: string | null
+          personal_email?: string | null
+          profile_id: string
+          ssnit_number?: string | null
+          tin?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          address?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_branch?: string | null
+          bank_name?: string | null
+          date_of_birth?: string | null
+          emergency_name?: string | null
+          emergency_phone?: string | null
+          emergency_relationship?: string | null
+          gender?: string | null
+          momo_name?: string | null
+          momo_network?: string | null
+          momo_number?: string | null
+          national_id_number?: string | null
+          national_id_type?: string | null
+          personal_email?: string | null
+          profile_id?: string
+          ssnit_number?: string | null
+          tin?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_private_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_private_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employment_history: {
+        Row: {
+          change_kind: string
+          created_at: string
+          created_by: string | null
+          effective_date: string
+          employment_type: string | null
+          id: string
+          job_title: string | null
+          note: string | null
+          profile_id: string
+          team_id: string | null
+        }
+        Insert: {
+          change_kind?: string
+          created_at?: string
+          created_by?: string | null
+          effective_date?: string
+          employment_type?: string | null
+          id?: string
+          job_title?: string | null
+          note?: string | null
+          profile_id: string
+          team_id?: string | null
+        }
+        Update: {
+          change_kind?: string
+          created_at?: string
+          created_by?: string | null
+          effective_date?: string
+          employment_type?: string | null
+          id?: string
+          job_title?: string | null
+          note?: string | null
+          profile_id?: string
+          team_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employment_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employment_history_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employment_history_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_claims: {
         Row: {
           amount: number
@@ -598,17 +933,50 @@ export type Database = {
           },
         ]
       }
+      profile_field_definitions: {
+        Row: {
+          field_type: string
+          key: string
+          label: string
+          options: string[] | null
+          position: number
+          visible_to: string
+        }
+        Insert: {
+          field_type?: string
+          key: string
+          label: string
+          options?: string[] | null
+          position?: number
+          visible_to?: string
+        }
+        Update: {
+          field_type?: string
+          key?: string
+          label?: string
+          options?: string[] | null
+          position?: number
+          visible_to?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           active: boolean
           auth_user_id: string | null
           created_at: string
+          custom_fields: Json
           email: string
+          employment_end_date: string | null
           employment_start_date: string
+          employment_type: string
           force_password_change: boolean
           full_name: string
           id: string
+          job_title: string | null
+          location: string | null
           password_changed_at: string | null
+          phone: string | null
           policy_id: string | null
           role: Database["public"]["Enums"]["app_role"]
           team_id: string | null
@@ -619,12 +987,18 @@ export type Database = {
           active?: boolean
           auth_user_id?: string | null
           created_at?: string
+          custom_fields?: Json
           email: string
+          employment_end_date?: string | null
           employment_start_date?: string
+          employment_type?: string
           force_password_change?: boolean
           full_name: string
           id?: string
+          job_title?: string | null
+          location?: string | null
           password_changed_at?: string | null
+          phone?: string | null
           policy_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           team_id?: string | null
@@ -635,12 +1009,18 @@ export type Database = {
           active?: boolean
           auth_user_id?: string | null
           created_at?: string
+          custom_fields?: Json
           email?: string
+          employment_end_date?: string | null
           employment_start_date?: string
+          employment_type?: string
           force_password_change?: boolean
           full_name?: string
           id?: string
+          job_title?: string | null
+          location?: string | null
           password_changed_at?: string | null
+          phone?: string | null
           policy_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           team_id?: string | null
@@ -716,7 +1096,47 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      employee_payout_details: {
+        Row: {
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_branch: string | null
+          bank_name: string | null
+          momo_name: string | null
+          momo_network: string | null
+          momo_number: string | null
+          profile_id: string | null
+        }
+        Insert: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_branch?: string | null
+          bank_name?: string | null
+          momo_name?: string | null
+          momo_network?: string | null
+          momo_number?: string | null
+          profile_id?: string | null
+        }
+        Update: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_branch?: string | null
+          bank_name?: string | null
+          momo_name?: string | null
+          momo_network?: string | null
+          momo_number?: string | null
+          profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_private_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accrued_allowance: {
@@ -726,6 +1146,7 @@ export type Database = {
       can_approve_for: { Args: { _employee: string }; Returns: boolean }
       can_decide_expenses: { Args: never; Returns: boolean }
       can_review_expenses: { Args: never; Returns: boolean }
+      can_see_checklist: { Args: { _checklist: string }; Returns: boolean }
       current_profile_id: { Args: never; Returns: string }
       current_role: {
         Args: never
@@ -775,9 +1196,17 @@ export type Database = {
         Args: { _profile_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      resolve_assignee: {
+        Args: { _employee: string; _role: string }
+        Returns: string
+      }
       run_year_end_rollover: {
         Args: { _dry_run?: boolean; _from_year: number }
         Returns: Json
+      }
+      start_checklist: {
+        Args: { _employee: string; _kind: string; _template?: string }
+        Returns: string
       }
       vacation_used: {
         Args: { _employee: string; _year: number }

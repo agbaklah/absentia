@@ -15,6 +15,8 @@ import { PolicyCard } from "@/components/settings/PolicyCard";
 import { BlackoutCard } from "@/components/settings/BlackoutCard";
 import { RolloverCard } from "@/components/settings/RolloverCard";
 import { HolidayImportCard } from "@/components/settings/HolidayImportCard";
+import { ChecklistTemplateCard } from "@/components/settings/ChecklistTemplateCard";
+import { CustomFieldsCard } from "@/components/settings/CustomFieldsCard";
 import { Save, Settings2, Tags, Users, Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -183,6 +185,10 @@ function SettingsPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <BlackoutCard />
         <RolloverCard />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChecklistTemplateCard />
+        <CustomFieldsCard />
       </div>
     </div>
   );

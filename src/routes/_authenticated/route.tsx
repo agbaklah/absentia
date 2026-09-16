@@ -24,6 +24,9 @@ const TITLES: Record<string, { label: string; sub?: string }> = {
   "/expenses": { label: "Petty cash" },
   "/expenses/review": { label: "Expense review" },
   "/audit": { label: "Audit log" },
+  "/profile": { label: "My profile" },
+  "/directory": { label: "Directory" },
+  "/onboarding": { label: "Onboarding" },
 };
 
 function useNow() {
@@ -46,7 +49,8 @@ function Shell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
   const now = useNow();
-  const title = TITLES[path]?.label ?? "Workspace";
+  const title =
+    TITLES[path]?.label ?? (path.startsWith("/employees/") ? "Employee record" : "Workspace");
 
   const dateStr = now.toLocaleDateString(undefined, {
     weekday: "short",

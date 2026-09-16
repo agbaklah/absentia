@@ -51,15 +51,10 @@ export function HistoryCard({ profileId }: { profileId: string }) {
       job_title: f.job_title.trim() || null,
       note: f.note.trim() || null,
     });
-    // Keep the profile's current title in sync for promotions/changes.
-    if (!error && f.job_title.trim() && f.change_kind !== "left") {
-      await supabase.from("profiles").update({ job_title: f.job_title.trim() }).eq("id", profileId);
-    }
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success("History entry added");
     void qc.invalidateQueries({ queryKey: ["history", profileId] });
-    void qc.invalidateQueries({ queryKey: ["employees"] });
     setOpen(false);
   };
 

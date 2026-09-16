@@ -66,12 +66,20 @@ exact RLS + trigger paths the app hits. Each file rolls back.
    `20260916000000_baseline_sync_production.sql` is a no-op on production (it
    captures columns that already existed there).
 2. **Storage buckets** are created by the migrations (`receipts`, `employee-docs`).
-3. **Edge function + secrets**
+3. **Edge function + secrets** — company mail is on Microsoft 365, so send
+   through Microsoft Graph (see *Microsoft 365 setup* below), then:
    ```bash
    supabase functions deploy send-notifications --no-verify-jwt
-   supabase secrets set RESEND_API_KEY=re_… EMAIL_FROM="Absentia <hr@verve-energyresources.com>" APP_URL=https://<your-vercel-domain> CRON_SECRET=<random>
+   supabase secrets set MS_TENANT_ID=<tenant guid> MS_CLIENT_ID=<app id> MS_CLIENT_SECRET=<secret value> \
+     MS_SENDER=hr@verve-energyresources.com APP_URL=https://<your-vercel-domain> CRON_SECRET=<random>
    ```
-   Without `RESEND_API_KEY` the function runs in dry-run mode (nothing is marked sent).
+   Prove delivery before scheduling anything:
+   ```bash
+   curl -X POST "https://uftjspyyihaqvqxemfnc.supabase.co/functions/v1/send-notifications?mode=test&to=you@verve-energyresources.com" \
+     -H "Authorization: Bearer <CRON_SECRET>"
+   ```
+   Alternatives: `RESEND_API_KEY` (Resend) or `SMTP_HOST/PORT/USER/PASS`. With no
+   transport configured the function runs in dry-run mode (nothing is marked sent).
 4. **Schedule it** (SQL editor on production; needs `pg_cron` + `pg_net`, enabled
    under Database → Extensions):
    ```sql
@@ -96,6 +104,36 @@ exact RLS + trigger paths the app hits. Each file rolls back.
      Ghana public holidays; review the Standard leave policy (notice days etc.).
    - Employees → each existing employee's record → Personal: add MoMo/bank details
      (or ask staff to do it from *My profile*).
+
+## Microsoft 365 setup (one-time, by a Microsoft 365 / Entra admin)
+
+Absentia sends from a shared mailbox (e.g. `hr@verve-energyresources.com`) using
+an app registration with application permission `Mail.Send`. No user password
+is stored; SMTP basic auth is not needed (Microsoft has retired it).
+
+1. **Create the sender mailbox** in the Microsoft 365 admin center — a shared
+   mailbox `hr@verve-energyresources.com` (free, no licence) or any licensed user.
+2. **Register the app** — Entra admin center → *App registrations* → *New
+   registration*: name `Absentia notifications`, single tenant, no redirect URI.
+   Note the **Application (client) ID** and **Directory (tenant) ID**.
+3. **Client secret** — *Certificates & secrets* → *New client secret* (choose
+   24 months; set a reminder to rotate). Copy the **Value** immediately.
+4. **Permission** — *API permissions* → *Add a permission* → *Microsoft Graph* →
+   *Application permissions* → `Mail.Send` → **Grant admin consent**.
+5. **Restrict to the one mailbox** (recommended — otherwise the app could send
+   as anyone). In Exchange Online PowerShell:
+   ```powershell
+   Connect-ExchangeOnline
+   New-DistributionGroup -Name "Absentia senders" -Type Security -Members hr@verve-energyresources.com
+   New-ApplicationAccessPolicy -AppId <client id> -PolicyScopeGroupId "Absentia senders" -AccessRight RestrictAccess -Description "Absentia may only send as hr@"
+   Test-ApplicationAccessPolicy -Identity hr@verve-energyresources.com -AppId <client id>   # AccessCheckResult: Granted
+   ```
+   (Policies take up to 30 minutes to apply.)
+6. Set the four `MS_*` secrets (step 3 above) and run the `?mode=test` call.
+   Check the mailbox — the test email should arrive from `hr@`.
+
+Rotating the secret later: create a new one in step 3, `supabase secrets set
+MS_CLIENT_SECRET=…`, then delete the old one.
 
 ## Year-end
 

@@ -6,9 +6,15 @@
 // Scheduled with pg_cron (see docs/DEPLOYMENT.md). Requires secrets:
 //   RESEND_API_KEY, EMAIL_FROM (e.g. "Absentia <hr@verve-energyresources.com>"),
 //   APP_URL (e.g. https://absentia.vercel.app)
-// Delivery: RESEND_API_KEY (production) or SMTP_HOST/SMTP_PORT (local Inbucket,
-// or any SMTP relay). With neither set the function runs in dry-run mode: it
-// reports what it would send and marks nothing, so testing is safe.
+// Delivery (first configured transport wins):
+//   1. Microsoft 365 via Graph — MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET,
+//      MS_SENDER (the mailbox to send from, e.g. hr@verve-energyresources.com)
+//   2. Resend — RESEND_API_KEY
+//   3. SMTP — SMTP_HOST/SMTP_PORT[/SMTP_USER/SMTP_PASS] (local Mailpit, relays)
+// With none set the function runs in dry-run mode: it reports what it would
+// send and marks nothing, so testing is safe.
+//
+//   POST /send-notifications?mode=test&to=someone@company.com → one test email
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import nodemailer from "npm:nodemailer@6";
@@ -30,7 +36,60 @@ const supabase = createClient(
 );
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY");
 const SMTP_HOST = Deno.env.get("SMTP_HOST");
-const LIVE = Boolean(RESEND_KEY || SMTP_HOST);
+const MS = {
+  tenant: Deno.env.get("MS_TENANT_ID"),
+  client: Deno.env.get("MS_CLIENT_ID"),
+  secret: Deno.env.get("MS_CLIENT_SECRET"),
+  sender: Deno.env.get("MS_SENDER"),
+};
+const MS_READY = Boolean(MS.tenant && MS.client && MS.secret && MS.sender);
+const LIVE = Boolean(MS_READY || RESEND_KEY || SMTP_HOST);
+const TRANSPORT = MS_READY
+  ? "microsoft-graph"
+  : RESEND_KEY
+    ? "resend"
+    : SMTP_HOST
+      ? "smtp"
+      : "dry-run";
+
+// Microsoft Graph: client-credentials token, cached until shortly before expiry.
+let msToken: { value: string; exp: number } | null = null;
+async function graphToken(): Promise<string> {
+  if (msToken && msToken.exp > Date.now() + 60_000) return msToken.value;
+  const res = await fetch(`https://login.microsoftonline.com/${MS.tenant}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: MS.client!,
+      client_secret: MS.secret!,
+      scope: "https://graph.microsoft.com/.default",
+      grant_type: "client_credentials",
+    }),
+  });
+  if (!res.ok) throw new Error(`Microsoft token error ${res.status}: ${await res.text()}`);
+  const j = (await res.json()) as { access_token: string; expires_in: number };
+  msToken = { value: j.access_token, exp: Date.now() + j.expires_in * 1000 };
+  return j.access_token;
+}
+async function sendViaGraph(to: string, subject: string, html: string) {
+  const token = await graphToken();
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(MS.sender!)}/sendMail`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: {
+          subject,
+          body: { contentType: "HTML", content: html },
+          toRecipients: [{ emailAddress: { address: to } }],
+        },
+        saveToSentItems: false,
+      }),
+    },
+  );
+  if (res.status !== 202) throw new Error(`Graph sendMail ${res.status}: ${await res.text()}`);
+}
 const smtp = SMTP_HOST
   ? nodemailer.createTransport({
       host: SMTP_HOST,
@@ -69,6 +128,14 @@ async function sendEmail(
   html: string,
 ): Promise<{ ok: boolean; error?: string }> {
   if (!LIVE) return { ok: true }; // dry run
+  if (MS_READY) {
+    try {
+      await sendViaGraph(to, subject, html);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
   if (!RESEND_KEY && smtp) {
     try {
       await smtp.sendMail({ from: FROM, to, subject, html });
@@ -134,7 +201,7 @@ async function deliverPending() {
         );
     }
   }
-  return { mode: LIVE ? "live" : "dry-run", pending: rows.length, emails: results };
+  return { mode: TRANSPORT, pending: rows.length, emails: results };
 }
 
 /** Monday digest: managers/admins get who's out + pending; CFO gets claims to review/pay. */
@@ -232,7 +299,7 @@ async function weeklyDigest() {
       });
     }
   }
-  return { mode: LIVE ? "live" : "dry-run", week: weekStart, emails: results };
+  return { mode: TRANSPORT, week: weekStart, emails: results };
 }
 
 Deno.serve(async (req) => {
@@ -247,7 +314,24 @@ Deno.serve(async (req) => {
     });
   }
   try {
-    const mode = new URL(req.url).searchParams.get("mode");
+    const url = new URL(req.url);
+    const mode = url.searchParams.get("mode");
+    if (mode === "test") {
+      const to = url.searchParams.get("to") ?? "";
+      if (!/^[^@\s]+@[^@\s]+$/.test(to)) throw new Error("Pass ?to=<email>");
+      const r = await sendEmail(
+        to,
+        "Absentia test email",
+        layout(
+          "Email delivery works",
+          `<p>This test was sent through <b>${TRANSPORT}</b> at ${new Date().toISOString()}.</p>`,
+          "/dashboard",
+        ),
+      );
+      return new Response(JSON.stringify({ mode: TRANSPORT, to, ...r }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
     const result = mode === "digest" ? await weeklyDigest() : await deliverPending();
     return new Response(JSON.stringify(result), {
       headers: { "content-type": "application/json" },

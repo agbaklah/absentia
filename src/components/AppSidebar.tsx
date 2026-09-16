@@ -7,6 +7,8 @@ import {
   Users,
   Settings,
   LogOut,
+  Receipt,
+  Wallet,
 } from "lucide-react";
 import { SperoLogo } from "@/components/SperoLogo";
 import {
@@ -22,7 +24,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth-context";
-import { useEntries } from "@/lib/data";
+import { useClaims, useEntries } from "@/lib/data";
 import { pendingRequestCount } from "@/lib/requests-util";
 import { Button } from "@/components/ui/button";
 import { InitialsAvatar } from "@/components/InitialsAvatar";
@@ -41,22 +43,31 @@ const employeeItems = [
   { title: "My Requests", url: "/requests", icon: ClipboardList },
 ];
 
+// Petty cash is available to everyone; the review queue only to CFO/admins.
+const pettyCashItem = { title: "Petty Cash", url: "/expenses", icon: Receipt };
+const reviewItem = { title: "Expense Review", url: "/expenses/review", icon: Wallet };
+
 const roleLabel: Record<string, string> = {
   admin: "Administrator",
   manager: "Manager",
   employee: "Employee",
   super_admin: "Super Administrator",
+  cfo: "Chief Financial Officer",
 };
 
 export function AppSidebar() {
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const { profile, signOut, isManagement } = useAuth();
+  const { profile, signOut, isManagement, canReviewExpenses } = useAuth();
   const items = isManagement ? managementItems : employeeItems;
   // Pending requests needing attention: org-wide for management, own for employees.
   const entries = useEntries(new Date().getFullYear());
   const scopeId = isManagement ? undefined : profile?.id;
   const pendingCount =
     !isManagement && !scopeId ? 0 : pendingRequestCount(entries.data ?? [], scopeId);
+  // Claims waiting for the CFO's decision.
+  const claims = useClaims({ enabled: canReviewExpenses });
+  const pendingClaims = (claims.data ?? []).filter((c) => c.status === "submitted").length;
+  const financeItems = canReviewExpenses ? [pettyCashItem, reviewItem] : [pettyCashItem];
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="overflow-hidden">
@@ -90,6 +101,35 @@ export function AppSidebar() {
                       {it.url === "/requests" && pendingCount > 0 && (
                         <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[11px] font-bold leading-none text-amber-950">
                           {pendingCount}
+                        </span>
+                      )}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Finance</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {financeItems.map((it) => (
+                <SidebarMenuItem key={it.url}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={
+                      it.url === "/expenses"
+                        ? path === "/expenses"
+                        : path === it.url || path.startsWith(it.url + "/")
+                    }
+                  >
+                    <Link to={it.url}>
+                      <it.icon className="h-4 w-4" />
+                      <span>{it.title}</span>
+                      {it.url === "/expenses/review" && pendingClaims > 0 && (
+                        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[11px] font-bold leading-none text-amber-950">
+                          {pendingClaims}
                         </span>
                       )}
                     </Link>

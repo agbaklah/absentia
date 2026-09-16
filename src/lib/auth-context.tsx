@@ -2,11 +2,13 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
+export type Role = "admin" | "manager" | "employee" | "super_admin" | "cfo";
+
 export type Profile = {
   id: string;
   full_name: string;
   email: string;
-  role: "admin" | "manager" | "employee" | "super_admin";
+  role: Role;
   team_id: string | null;
 };
 
@@ -19,6 +21,12 @@ type AuthCtx = {
   isManagement: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  /** Chief Financial Officer — owns petty-cash review and reimbursement. */
+  isCfo: boolean;
+  /** May open the expense review queue (CFO decides; admins read-only). */
+  canReviewExpenses: boolean;
+  /** May approve / reject / pay claims (CFO, or super admin as fallback). */
+  canDecideExpenses: boolean;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -66,6 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile?.role === "admin" || profile?.role === "manager" || profile?.role === "super_admin",
     isAdmin: profile?.role === "admin" || profile?.role === "super_admin",
     isSuperAdmin: profile?.role === "super_admin",
+    isCfo: profile?.role === "cfo",
+    canReviewExpenses:
+      profile?.role === "cfo" || profile?.role === "admin" || profile?.role === "super_admin",
+    canDecideExpenses: profile?.role === "cfo" || profile?.role === "super_admin",
     signOut: async () => {
       await supabase.auth.signOut();
     },

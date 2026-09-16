@@ -6,11 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { LEAVE_TYPES } from "@/lib/leave";
 import { useHolidays, useTeams } from "@/lib/data";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/PageHeader";
-import { CalendarDays, Save, Settings2, Tags, Users } from "lucide-react";
+import { CalendarDays, Save, Settings2, Tags, Users, Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -22,10 +23,14 @@ function SettingsPage() {
   const [carryCap, setCarryCap] = useState(5);
   const [maxAbs, setMaxAbs] = useState(3);
   const [sickTh, setSickTh] = useState(8);
+  const [companyName, setCompanyName] = useState("");
+  const [currency, setCurrency] = useState("GHS");
+  const [pettyLimit, setPettyLimit] = useState(5000);
   const [saving, setSaving] = useState(false);
   const year = new Date().getFullYear();
   const hols = useHolidays(year);
   const teams = useTeams();
+  const qc = useQueryClient();
 
   useEffect(() => {
     void (async () => {
@@ -39,6 +44,9 @@ function SettingsPage() {
         setCarryCap(Number(data.carryover_cap_days));
         setMaxAbs(Number(data.max_concurrent_absent));
         setSickTh(Number(data.sick_threshold_days));
+        setCompanyName(data.company_name ?? "");
+        setCurrency(data.currency ?? "GHS");
+        setPettyLimit(Number(data.petty_cash_limit ?? 0));
       }
     })();
   }, []);
@@ -52,11 +60,15 @@ function SettingsPage() {
         carryover_cap_days: carryCap,
         max_concurrent_absent: maxAbs,
         sick_threshold_days: sickTh,
+        company_name: companyName.trim() || "Verve Energy Resources",
+        currency: currency.trim().toUpperCase() || "GHS",
+        petty_cash_limit: pettyLimit,
       })
       .eq("key", "default");
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success("Settings saved");
+    void qc.invalidateQueries({ queryKey: ["settings"] });
   };
 
   if (authLoading) return null;
@@ -87,6 +99,29 @@ function SettingsPage() {
           <div className="space-y-1.5">
             <Label>Sick threshold (days)</Label>
             <Input type="number" value={sickTh} onChange={(e) => setSickTh(+e.target.value)} />
+          </div>
+        </div>
+        <div className="mt-5 mb-3 flex items-center gap-2">
+          <Wallet className="h-4 w-4 text-emerald-700" />
+          <div className="text-sm font-medium">Organisation & petty cash</div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Company name</Label>
+            <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Currency code</Label>
+            <Input value={currency} maxLength={3} onChange={(e) => setCurrency(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Petty cash limit per claim (0 = none)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={pettyLimit}
+              onChange={(e) => setPettyLimit(+e.target.value)}
+            />
           </div>
         </div>
         <div className="mt-4">

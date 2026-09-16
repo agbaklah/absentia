@@ -45,13 +45,14 @@ export const Route = createFileRoute("/_authenticated/employees")({
   component: EmployeesPage,
 });
 
-type Role = "employee" | "manager" | "admin" | "super_admin";
+type Role = "employee" | "manager" | "admin" | "super_admin" | "cfo";
 
 const roleTone: Record<Role, "secondary" | "outline" | "default"> = {
   employee: "secondary",
   manager: "outline",
   admin: "default",
   super_admin: "default",
+  cfo: "default",
 };
 
 const roleLabel: Record<Role, string> = {
@@ -59,11 +60,13 @@ const roleLabel: Record<Role, string> = {
   manager: "Manager",
   admin: "Admin",
   super_admin: "Super Admin",
+  cfo: "CFO",
 };
 
-// Only a super admin can manage admin/super_admin accounts.
+// Only a super admin can manage admin/super_admin/cfo accounts (the CFO role
+// carries authority over company money).
 const canManageRole = (isSuperAdmin: boolean, role: string) =>
-  isSuperAdmin || (role !== "admin" && role !== "super_admin");
+  isSuperAdmin || (role !== "admin" && role !== "super_admin" && role !== "cfo");
 
 function EmployeesPage() {
   const { loading, isManagement, isAdmin, isSuperAdmin } = useAuth();
@@ -220,6 +223,7 @@ function EmployeesPage() {
                             {isSuperAdmin && (
                               <SelectItem value="super_admin">Super Admin</SelectItem>
                             )}
+                            {isSuperAdmin && <SelectItem value="cfo">CFO</SelectItem>}
                           </SelectContent>
                         </Select>
                       ) : (
@@ -430,6 +434,7 @@ function NewEmployeeDialog() {
                   <SelectItem value="manager">Manager</SelectItem>
                   {isSuperAdmin && <SelectItem value="admin">Admin</SelectItem>}
                   {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
+                  {isSuperAdmin && <SelectItem value="cfo">CFO</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

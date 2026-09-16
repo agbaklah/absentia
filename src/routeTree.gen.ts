@@ -19,6 +19,8 @@ import { Route as AuthenticatedEmployeesRouteImport } from './routes/_authentica
 import { Route as AuthenticatedRequestsRouteImport } from './routes/_authenticated/requests'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedYearlyRouteImport } from './routes/_authenticated/yearly'
+import { Route as AuthenticatedExpensesIndexRouteImport } from './routes/_authenticated/expenses/index'
+import { Route as AuthenticatedExpensesReviewRouteImport } from './routes/_authenticated/expenses/review'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -69,6 +71,18 @@ const AuthenticatedYearlyRoute = AuthenticatedYearlyRouteImport.update({
   path: '/yearly',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedExpensesIndexRoute =
+  AuthenticatedExpensesIndexRouteImport.update({
+    id: '/expenses/',
+    path: '/expenses/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedExpensesReviewRoute =
+  AuthenticatedExpensesReviewRouteImport.update({
+    id: '/expenses/review',
+    path: '/expenses/review',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -80,6 +94,8 @@ export interface FileRoutesByFullPath {
   '/requests': typeof AuthenticatedRequestsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/yearly': typeof AuthenticatedYearlyRoute
+  '/expenses/review': typeof AuthenticatedExpensesReviewRoute
+  '/expenses/': typeof AuthenticatedExpensesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -91,6 +107,8 @@ export interface FileRoutesByTo {
   '/requests': typeof AuthenticatedRequestsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/yearly': typeof AuthenticatedYearlyRoute
+  '/expenses/review': typeof AuthenticatedExpensesReviewRoute
+  '/expenses': typeof AuthenticatedExpensesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -104,6 +122,8 @@ export interface FileRoutesById {
   '/_authenticated/requests': typeof AuthenticatedRequestsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/yearly': typeof AuthenticatedYearlyRoute
+  '/_authenticated/expenses/review': typeof AuthenticatedExpensesReviewRoute
+  '/_authenticated/expenses/': typeof AuthenticatedExpensesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -117,6 +137,8 @@ export interface FileRouteTypes {
     | '/requests'
     | '/settings'
     | '/yearly'
+    | '/expenses/review'
+    | '/expenses/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -128,6 +150,8 @@ export interface FileRouteTypes {
     | '/requests'
     | '/settings'
     | '/yearly'
+    | '/expenses/review'
+    | '/expenses'
   id:
     | '__root__'
     | '/'
@@ -140,6 +164,8 @@ export interface FileRouteTypes {
     | '/_authenticated/requests'
     | '/_authenticated/settings'
     | '/_authenticated/yearly'
+    | '/_authenticated/expenses/review'
+    | '/_authenticated/expenses/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -221,6 +247,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedYearlyRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/expenses/': {
+      id: '/_authenticated/expenses/'
+      path: '/expenses'
+      fullPath: '/expenses/'
+      preLoaderRoute: typeof AuthenticatedExpensesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/expenses/review': {
+      id: '/_authenticated/expenses/review'
+      path: '/expenses/review'
+      fullPath: '/expenses/review'
+      preLoaderRoute: typeof AuthenticatedExpensesReviewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -231,6 +271,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRequestsRoute: typeof AuthenticatedRequestsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedYearlyRoute: typeof AuthenticatedYearlyRoute
+  AuthenticatedExpensesReviewRoute: typeof AuthenticatedExpensesReviewRoute
+  AuthenticatedExpensesIndexRoute: typeof AuthenticatedExpensesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -240,6 +282,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRequestsRoute: AuthenticatedRequestsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedYearlyRoute: AuthenticatedYearlyRoute,
+  AuthenticatedExpensesReviewRoute: AuthenticatedExpensesReviewRoute,
+  AuthenticatedExpensesIndexRoute: AuthenticatedExpensesIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

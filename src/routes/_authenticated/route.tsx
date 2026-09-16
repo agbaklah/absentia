@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { useAuth } from "@/lib/auth-context";
 import { RefreshWorkspaceButton, WorkspaceLoadingOverlay } from "@/components/workspace-loading";
 import { CommandPalette } from "@/components/CommandPalette";
+import { NotificationBell } from "@/components/NotificationBell";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -20,6 +21,8 @@ const TITLES: Record<string, { label: string; sub?: string }> = {
   "/yearly": { label: "Yearly summary" },
   "/employees": { label: "Employees" },
   "/settings": { label: "Settings" },
+  "/expenses": { label: "Petty cash" },
+  "/expenses/review": { label: "Expense review" },
 };
 
 function useNow() {
@@ -80,6 +83,7 @@ function Shell() {
               <Search className="h-4 w-4" />
             </Button>
             <span className="hidden text-xs text-muted-foreground lg:inline">{dateStr}</span>
+            <NotificationBell />
             <RefreshWorkspaceButton />
           </header>
           <main className="relative flex-1 overflow-hidden bg-background p-6">

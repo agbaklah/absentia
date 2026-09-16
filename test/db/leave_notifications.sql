@@ -1,15 +1,4 @@
 BEGIN;
-CREATE OR REPLACE FUNCTION pg_temp.as_user(_email text) RETURNS void LANGUAGE plpgsql AS $$
-DECLARE uid uuid;
-BEGIN
-  SELECT auth_user_id INTO uid FROM public.profiles WHERE email = _email;
-  PERFORM set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true);
-  PERFORM set_config('role', 'authenticated', true);
-END $$;
-CREATE OR REPLACE FUNCTION pg_temp.as_service() RETURNS void LANGUAGE plpgsql AS $$
-BEGIN PERFORM set_config('request.jwt.claims', '', true); PERFORM set_config('role', 'postgres', true); END $$;
-CREATE OR REPLACE FUNCTION pg_temp.check(_cond boolean, _msg text) RETURNS void LANGUAGE plpgsql AS $$
-BEGIN IF NOT COALESCE(_cond, false) THEN RAISE EXCEPTION 'CHECK FAILED: %', _msg; END IF; END $$;
 DO $$
 DECLARE
   kofi uuid := (SELECT id FROM profiles WHERE email='kofi@verve-energyresources.com');
@@ -18,6 +7,9 @@ DECLARE
   kwame uuid := (SELECT id FROM profiles WHERE email='kwame@verve-energyresources.com');
   n int;
 BEGIN
+  PERFORM pg_temp.as_service();
+  DELETE FROM notifications; DELETE FROM leave_entries;
+  UPDATE profiles SET employment_start_date = '2024-01-01' WHERE id = kofi;
   PERFORM pg_temp.as_user('kofi@verve-energyresources.com');
   INSERT INTO leave_entries(employee_id, date, leave_code, status, requested_by) VALUES
     (kofi, '2026-10-05', 'L', 'pending', kofi),

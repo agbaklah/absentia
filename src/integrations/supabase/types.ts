@@ -73,6 +73,48 @@ export type Database = {
         }
         Relationships: []
       }
+      approval_delegations: {
+        Row: {
+          created_at: string
+          delegate_id: string
+          delegator_id: string
+          end_date: string
+          id: string
+          start_date: string
+        }
+        Insert: {
+          created_at?: string
+          delegate_id: string
+          delegator_id: string
+          end_date: string
+          id?: string
+          start_date?: string
+        }
+        Update: {
+          created_at?: string
+          delegate_id?: string
+          delegator_id?: string
+          end_date?: string
+          id?: string
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_delegations_delegate_id_fkey"
+            columns: ["delegate_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_delegations_delegator_id_fkey"
+            columns: ["delegator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -105,6 +147,51 @@ export type Database = {
           ts?: string
         }
         Relationships: []
+      }
+      blackout_periods: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          reason: string
+          start_date: string
+          team_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          reason: string
+          start_date: string
+          team_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          reason?: string
+          start_date?: string
+          team_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blackout_periods_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blackout_periods_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       expense_claims: {
         Row: {
@@ -273,6 +360,54 @@ export type Database = {
           },
         ]
       }
+      leave_balance_transactions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          days: number
+          employee_id: string
+          id: string
+          kind: string
+          note: string | null
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          days: number
+          employee_id: string
+          id?: string
+          kind: string
+          note?: string | null
+          year: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          days?: number
+          employee_id?: string
+          id?: string
+          kind?: string
+          note?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_balance_transactions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_balance_transactions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leave_entries: {
         Row: {
           approved_at: string | null
@@ -346,6 +481,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      leave_policies: {
+        Row: {
+          accrual_method: string
+          allow_negative_balance: boolean
+          annual_days: number
+          carryover_cap_days: number
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean
+          max_consecutive_days: number | null
+          min_notice_days: number
+          name: string
+          sick_days: number
+          waiting_period_days: number
+        }
+        Insert: {
+          accrual_method?: string
+          allow_negative_balance?: boolean
+          annual_days?: number
+          carryover_cap_days?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          max_consecutive_days?: number | null
+          min_notice_days?: number
+          name: string
+          sick_days?: number
+          waiting_period_days?: number
+        }
+        Update: {
+          accrual_method?: string
+          allow_negative_balance?: boolean
+          annual_days?: number
+          carryover_cap_days?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          max_consecutive_days?: number | null
+          min_notice_days?: number
+          name?: string
+          sick_days?: number
+          waiting_period_days?: number
+        }
+        Relationships: []
       }
       leave_types: {
         Row: {
@@ -426,6 +609,7 @@ export type Database = {
           full_name: string
           id: string
           password_changed_at: string | null
+          policy_id: string | null
           role: Database["public"]["Enums"]["app_role"]
           team_id: string | null
           temp_password_expires_at: string | null
@@ -441,6 +625,7 @@ export type Database = {
           full_name: string
           id?: string
           password_changed_at?: string | null
+          policy_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           team_id?: string | null
           temp_password_expires_at?: string | null
@@ -456,12 +641,20 @@ export type Database = {
           full_name?: string
           id?: string
           password_changed_at?: string | null
+          policy_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           team_id?: string | null
           temp_password_expires_at?: string | null
           temp_password_hash?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "leave_policies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_team_id_fkey"
             columns: ["team_id"]
@@ -526,6 +719,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accrued_allowance: {
+        Args: { _as_of?: string; _employee: string; _year: number }
+        Returns: number
+      }
+      can_approve_for: { Args: { _employee: string }; Returns: boolean }
       can_decide_expenses: { Args: never; Returns: boolean }
       can_review_expenses: { Args: never; Returns: boolean }
       current_profile_id: { Args: never; Returns: string }
@@ -549,15 +747,51 @@ export type Database = {
         }
         Returns: undefined
       }
+      policy_for: {
+        Args: { _employee: string }
+        Returns: {
+          accrual_method: string
+          allow_negative_balance: boolean
+          annual_days: number
+          carryover_cap_days: number
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean
+          max_consecutive_days: number | null
+          min_notice_days: number
+          name: string
+          sick_days: number
+          waiting_period_days: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "leave_policies"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       profile_role: {
         Args: { _profile_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      run_year_end_rollover: {
+        Args: { _dry_run?: boolean; _from_year: number }
+        Returns: Json
+      }
+      vacation_used: {
+        Args: { _employee: string; _year: number }
+        Returns: number
+      }
+      validate_leave_request: {
+        Args: { _dates: string[]; _employee: string; _leave_code: string }
+        Returns: Json
       }
     }
     Enums: {
       app_role: "admin" | "manager" | "employee" | "super_admin" | "cfo"
       expense_status: "draft" | "submitted" | "approved" | "rejected" | "paid"
-      leave_status: "pending" | "approved" | "rejected"
+      leave_status: "pending" | "approved" | "rejected" | "cancelled"
       payment_method: "cash" | "momo" | "bank_transfer"
     }
     CompositeTypes: {
@@ -691,7 +925,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "manager", "employee", "super_admin", "cfo"],
       expense_status: ["draft", "submitted", "approved", "rejected", "paid"],
-      leave_status: ["pending", "approved", "rejected"],
+      leave_status: ["pending", "approved", "rejected", "cancelled"],
       payment_method: ["cash", "momo", "bank_transfer"],
     },
   },

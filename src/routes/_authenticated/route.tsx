@@ -23,6 +23,7 @@ const TITLES: Record<string, { label: string; sub?: string }> = {
   "/settings": { label: "Settings" },
   "/expenses": { label: "Petty cash" },
   "/expenses/review": { label: "Expense review" },
+  "/audit": { label: "Audit log" },
 };
 
 function useNow() {

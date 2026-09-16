@@ -44,7 +44,20 @@ import {
 } from "@/lib/leave";
 import { toRequests, groupEntries, nextDay } from "@/lib/requests-util";
 import { useAuth } from "@/lib/auth-context";
+import { useLeaveValidation } from "@/lib/leave-validation";
+import { LeaveValidationNotice } from "@/components/LeaveValidationNotice";
 import { RequestLeaveDialog } from "@/components/RequestLeaveDialog";
+import { DelegationCard } from "@/components/DelegationCard";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PageHeader } from "@/components/PageHeader";
 import { InitialsAvatar } from "@/components/InitialsAvatar";
 import { cn } from "@/lib/utils";
@@ -58,10 +71,14 @@ function RequestsRoute() {
   return isManagement ? <ManagementRequests /> : <EmployeeRequests />;
 }
 
-const statusVariant: Record<EntryRow["status"], "default" | "secondary" | "destructive"> = {
+const statusVariant: Record<
+  EntryRow["status"],
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   approved: "default",
   pending: "secondary",
   rejected: "destructive",
+  cancelled: "outline",
 };
 
 function prevDay(iso: string): string {
@@ -327,6 +344,8 @@ function ManagementRequests() {
         </div>
       </Card>
 
+      <DelegationCard />
+
       <ActivityDetailDialog
         entry={selected}
         allEntries={entries.data ?? []}
@@ -556,6 +575,12 @@ function ManagementRequestDialog() {
     [hStart.data, hEnd.data],
   );
 
+  const workingDays = useMemo(
+    () => eachDayISO(start, end).filter((d) => isWorkingDayISO(d, holidaySet)),
+    [start, end, holidaySet],
+  );
+  const validation = useLeaveValidation(open ? empId : "", workingDays, code);
+
   const submit = async () => {
     const s = parseISODate(start);
     const e = parseISODate(end);
@@ -638,6 +663,7 @@ function ManagementRequestDialog() {
               <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
             </div>
           </div>
+          <LeaveValidationNotice result={validation.result} checking={validation.checking} />
           <div className="space-y-1.5">
             <Label>Reason (optional)</Label>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} />
@@ -658,6 +684,34 @@ function EmployeeRequests() {
   const year = new Date().getFullYear();
   const { profile } = useAuth();
   const entries = useEntries(year);
+  const qc = useQueryClient();
+  const [cancelTarget, setCancelTarget] = useState<{
+    start: string;
+    end: string;
+    code: string;
+  } | null>(null);
+  const today = fmtISO(new Date());
+
+  const cancelGroup = async (g: { start: string; end: string; code: string }) => {
+    const ids = mine
+      .filter(
+        (e) =>
+          e.leave_code === g.code &&
+          e.date >= g.start &&
+          e.date <= g.end &&
+          (e.status === "pending" || (e.status === "approved" && e.date >= today)),
+      )
+      .map((e) => e.id);
+    if (ids.length === 0) return toast.error("Nothing left to cancel in that request.");
+    const { data, error } = await supabase
+      .from("leave_entries")
+      .update({ status: "cancelled" })
+      .in("id", ids)
+      .select("id");
+    if (error) return toast.error(error.message);
+    toast.success(`Cancelled ${data?.length ?? 0} day${(data?.length ?? 0) === 1 ? "" : "s"}`);
+    void qc.invalidateQueries({ queryKey: ["entries", year] });
+  };
 
   const mine = useMemo(
     () => (entries.data ?? []).filter((e) => e.employee_id === profile?.id),
@@ -665,7 +719,7 @@ function EmployeeRequests() {
   );
   const requests = useMemo(() => groupEntries(mine), [mine]);
   const summary = useMemo(() => {
-    const c = { approved: 0, pending: 0, rejected: 0 };
+    const c = { approved: 0, pending: 0, rejected: 0, cancelled: 0 };
     for (const e of mine) {
       const t = LEAVE_MAP[e.leave_code as keyof typeof LEAVE_MAP];
       c[e.status] += t?.days ?? 1;
@@ -733,12 +787,52 @@ function EmployeeRequests() {
                     )}
                   </div>
                 </div>
-                <Badge variant={statusVariant[g.status]}>{g.status}</Badge>
+                <div className="flex items-center gap-2">
+                  {(g.status === "pending" || (g.status === "approved" && g.end >= today)) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={() => setCancelTarget(g)}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  <Badge variant={statusVariant[g.status]}>{g.status}</Badge>
+                </div>
               </div>
             );
           })}
         </div>
       </Card>
+
+      <AlertDialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this leave?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {cancelTarget &&
+                (cancelTarget.start === cancelTarget.end
+                  ? fmtDayFull(cancelTarget.start)
+                  : `${fmtDayShort(cancelTarget.start)} → ${fmtDayShort(cancelTarget.end)}`)}
+              . Days already taken stay as they are; your manager will be notified.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const t = cancelTarget;
+                setCancelTarget(null);
+                if (t) void cancelGroup(t);
+              }}
+            >
+              Cancel leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

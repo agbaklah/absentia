@@ -8,10 +8,14 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { LEAVE_TYPES } from "@/lib/leave";
-import { useHolidays, useTeams } from "@/lib/data";
+import { useTeams } from "@/lib/data";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/PageHeader";
-import { CalendarDays, Save, Settings2, Tags, Users, Wallet } from "lucide-react";
+import { PolicyCard } from "@/components/settings/PolicyCard";
+import { BlackoutCard } from "@/components/settings/BlackoutCard";
+import { RolloverCard } from "@/components/settings/RolloverCard";
+import { HolidayImportCard } from "@/components/settings/HolidayImportCard";
+import { Save, Settings2, Tags, Users, Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -27,8 +31,6 @@ function SettingsPage() {
   const [currency, setCurrency] = useState("GHS");
   const [pettyLimit, setPettyLimit] = useState(5000);
   const [saving, setSaving] = useState(false);
-  const year = new Date().getFullYear();
-  const hols = useHolidays(year);
   const teams = useTeams();
   const qc = useQueryClient();
 
@@ -174,25 +176,13 @@ function SettingsPage() {
           </ul>
         </Card>
 
-        <Card className="card-dense p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-emerald-700" />
-            <div className="text-sm font-medium">Public holidays — {year}</div>
-          </div>
-          <ul className="divide-y">
-            {(hols.data ?? []).map((h) => (
-              <li key={h.id} className="flex items-center justify-between py-2 text-sm">
-                <span className="tabular">{h.date}</span>
-                <span className="text-muted-foreground">{h.name}</span>
-              </li>
-            ))}
-            {(hols.data ?? []).length === 0 && (
-              <li className="py-4 text-sm text-muted-foreground">
-                No public holidays recorded for {year}.
-              </li>
-            )}
-          </ul>
-        </Card>
+        <HolidayImportCard />
+      </div>
+
+      <PolicyCard />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <BlackoutCard />
+        <RolloverCard />
       </div>
     </div>
   );

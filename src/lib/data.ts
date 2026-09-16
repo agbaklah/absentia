@@ -12,14 +12,16 @@ export type EmployeeRow = {
   employment_start_date: string;
   active: boolean;
   auth_user_id: string | null;
+  policy_id: string | null;
 };
+export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 export type TeamRow = { id: string; name: string; manager_id: string | null };
 export type EntryRow = {
   id: string;
   employee_id: string;
   date: string;
   leave_code: string;
-  status: "pending" | "approved" | "rejected";
+  status: LeaveStatus;
   note: string | null;
   requested_by: string | null;
   approved_by: string | null;
@@ -53,7 +55,9 @@ export const useEmployees = (opts?: { enabled?: boolean }) =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email, role, team_id, employment_start_date, active, auth_user_id")
+        .select(
+          "id, full_name, email, role, team_id, employment_start_date, active, auth_user_id, policy_id",
+        )
         .eq("active", true)
         .order("full_name");
       if (error) throw error;
@@ -188,5 +192,133 @@ export const useReceipts = (claimId: string | null) =>
         .order("uploaded_at");
       if (error) throw error;
       return (data ?? []) as ReceiptRow[];
+    },
+  });
+
+// ---------------------------------------------------------------------------
+// Leave policy engine
+// ---------------------------------------------------------------------------
+export type PolicyRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  accrual_method: "annual" | "monthly";
+  annual_days: number;
+  sick_days: number;
+  carryover_cap_days: number;
+  waiting_period_days: number;
+  min_notice_days: number;
+  max_consecutive_days: number | null;
+  allow_negative_balance: boolean;
+  is_default: boolean;
+};
+
+export const usePolicies = () =>
+  useQuery({
+    queryKey: ["policies"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("leave_policies").select("*").order("name");
+      if (error) throw error;
+      return (data ?? []).map((p) => ({
+        ...p,
+        annual_days: Number(p.annual_days),
+        sick_days: Number(p.sick_days),
+        carryover_cap_days: Number(p.carryover_cap_days),
+      })) as PolicyRow[];
+    },
+  });
+
+export type BlackoutRow = {
+  id: string;
+  team_id: string | null;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  created_by: string | null;
+};
+
+export const useBlackouts = () =>
+  useQuery({
+    queryKey: ["blackouts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("blackout_periods")
+        .select("*")
+        .order("start_date");
+      if (error) throw error;
+      return (data ?? []) as BlackoutRow[];
+    },
+  });
+
+export type DelegationRow = {
+  id: string;
+  delegator_id: string;
+  delegate_id: string;
+  start_date: string;
+  end_date: string;
+};
+
+export const useDelegations = () =>
+  useQuery({
+    queryKey: ["delegations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("approval_delegations")
+        .select("*")
+        .order("start_date", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as DelegationRow[];
+    },
+  });
+
+export type BalanceTxRow = {
+  id: string;
+  employee_id: string;
+  year: number;
+  kind: "adjustment" | "carryover" | "expiry" | "allowance";
+  days: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export const useBalanceTransactions = (employeeId: string | null) =>
+  useQuery({
+    queryKey: ["balance-tx", employeeId],
+    enabled: !!employeeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("leave_balance_transactions")
+        .select("*")
+        .eq("employee_id", employeeId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((r) => ({ ...r, days: Number(r.days) })) as BalanceTxRow[];
+    },
+  });
+
+export type AuditRow = {
+  id: string;
+  actor_id: string | null;
+  action: string;
+  entity: string;
+  entity_id: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  ts: string;
+};
+
+export const useAuditLog = (opts: { enabled: boolean; limit?: number }) =>
+  useQuery({
+    queryKey: ["audit", opts.limit ?? 300],
+    enabled: opts.enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audit_log")
+        .select("*")
+        .order("ts", { ascending: false })
+        .limit(opts.limit ?? 300);
+      if (error) throw error;
+      return (data ?? []) as AuditRow[];
     },
   });

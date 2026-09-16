@@ -13,11 +13,16 @@ import { LEAVE_MAP, fmtDayShort } from "@/lib/leave";
 import { groupEntries } from "@/lib/requests-util";
 import { cn } from "@/lib/utils";
 import { CalendarDays, Mail, Users } from "lucide-react";
+import { BalanceHistory } from "@/components/BalanceHistory";
 
-const statusVariant: Record<EntryRow["status"], "default" | "secondary" | "destructive"> = {
+const statusVariant: Record<
+  EntryRow["status"],
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   approved: "default",
   pending: "secondary",
   rejected: "destructive",
+  cancelled: "outline",
 };
 
 const roleTone: Record<string, "secondary" | "outline" | "default"> = {
@@ -32,6 +37,7 @@ const roleLabel: Record<string, string> = {
   manager: "Manager",
   admin: "Admin",
   super_admin: "Super Admin",
+  cfo: "CFO",
 };
 
 /**
@@ -175,6 +181,8 @@ export function EmployeeDetailDrawer({
                   </div>
                 )}
               </section>
+
+              <BalanceHistory employeeId={employee.id} policyId={employee.policy_id ?? null} />
 
               {/* Leave history for the year */}
               <section>

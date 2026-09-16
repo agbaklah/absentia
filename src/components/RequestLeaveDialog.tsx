@@ -33,6 +33,8 @@ import {
 } from "@/lib/leave";
 import { useHolidays, useEmployees } from "@/lib/data";
 import { useAuth } from "@/lib/auth-context";
+import { useLeaveValidation } from "@/lib/leave-validation";
+import { LeaveValidationNotice } from "@/components/LeaveValidationNotice";
 
 /**
  * Leave request dialog.
@@ -70,8 +72,17 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
     [hStart.data, hEnd.data],
   );
 
+  // Working days in the chosen range — validated live against policy rules.
+  const workingDays = useMemo(
+    () => eachDayISO(start, end).filter((d) => isWorkingDayISO(d, holidaySet)),
+    [start, end, holidaySet],
+  );
+  const validation = useLeaveValidation(open ? selectedEmployeeId : "", workingDays, code);
+
   const submit = async () => {
     if (!selectedEmployeeId) return toast.error("Select an employee to file the request for");
+    if (validation.result && !validation.result.ok)
+      return toast.error(validation.result.errors[0] ?? "This request breaks a leave policy rule.");
     if (isSuperAdmin && selectedEmployeeId === profile?.id)
       return toast.error("Super admins cannot request leave for themselves");
     const s = parseISODate(start);
@@ -213,13 +224,17 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
               <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
             </div>
           </div>
+          <LeaveValidationNotice result={validation.result} checking={validation.checking} />
           <div>
             <Label>Reason (optional)</Label>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={busy}>
+          <Button
+            onClick={submit}
+            disabled={busy || (validation.result ? !validation.result.ok : false)}
+          >
             {busy ? "Submitting…" : "Submit request"}
           </Button>
         </DialogFooter>

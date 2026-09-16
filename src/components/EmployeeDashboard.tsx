@@ -40,10 +40,14 @@ const CATEGORY_LABEL: Record<string, string> = {
   wfh: "WFH",
 };
 
-const statusVariant: Record<EntryRow["status"], "default" | "secondary" | "destructive"> = {
+const statusVariant: Record<
+  EntryRow["status"],
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   approved: "default",
   pending: "secondary",
   rejected: "destructive",
+  cancelled: "outline",
 };
 
 export function EmployeeDashboard() {

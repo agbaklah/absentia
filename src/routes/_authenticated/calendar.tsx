@@ -325,7 +325,9 @@ function MobileDayGrid({
           const isToday = iso === todayIso;
           const people = dayEntries.get(iso) ?? [];
           // Rejected requests are not absences — don't show them as off.
-          const off = people.filter((p) => p.entry.status !== "rejected");
+          const off = people.filter(
+            (p) => p.entry.status !== "rejected" && p.entry.status !== "cancelled",
+          );
           return (
             <button
               key={i}
@@ -525,7 +527,8 @@ function ScrollTable({
                           const hol = holSet.has(iso);
                           const ent = entryMap.get(`${emp.id}|${iso}`);
                           // Rejected requests are not absences — render the day as empty.
-                          const showLeave = !!ent && ent.status !== "rejected";
+                          const showLeave =
+                            !!ent && ent.status !== "rejected" && ent.status !== "cancelled";
                           const lt = showLeave
                             ? LEAVE_MAP[ent.leave_code as keyof typeof LEAVE_MAP]
                             : null;
@@ -610,7 +613,12 @@ function DayDetailDialog({
 }) {
   // Who's actually off that day — rejected requests are not absences.
   const people = useMemo(
-    () => (iso ? (dayEntries.get(iso) ?? []).filter((p) => p.entry.status !== "rejected") : []),
+    () =>
+      iso
+        ? (dayEntries.get(iso) ?? []).filter(
+            (p) => p.entry.status !== "rejected" && p.entry.status !== "cancelled",
+          )
+        : [],
     [iso, dayEntries],
   );
 

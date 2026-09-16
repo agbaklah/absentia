@@ -9,6 +9,7 @@ import {
   LogOut,
   Receipt,
   Wallet,
+  ScrollText,
 } from "lucide-react";
 import { SperoLogo } from "@/components/SperoLogo";
 import {
@@ -57,8 +58,12 @@ const roleLabel: Record<string, string> = {
 
 export function AppSidebar() {
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const { profile, signOut, isManagement, canReviewExpenses } = useAuth();
-  const items = isManagement ? managementItems : employeeItems;
+  const { profile, signOut, isManagement, isAdmin, canReviewExpenses } = useAuth();
+  const items = isManagement
+    ? isAdmin
+      ? [...managementItems, { title: "Audit Log", url: "/audit", icon: ScrollText }]
+      : managementItems
+    : employeeItems;
   // Pending requests needing attention: org-wide for management, own for employees.
   const entries = useEntries(new Date().getFullYear());
   const scopeId = isManagement ? undefined : profile?.id;

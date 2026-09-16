@@ -24,7 +24,23 @@ Test accounts: `verveit@` (super admin), `kwame@` (CFO), `ama@` (manager,
 Engineers), `esi@` (admin), `kofi@` / `yaw@` (employees) — all
 `@verve-energyresources.com`.
 
-Studio: http://127.0.0.1:55323 · Inbucket (local email): http://127.0.0.1:55324
+Studio: http://127.0.0.1:55323 · Mailpit (local email inbox): http://127.0.0.1:55324
+
+### Testing email locally
+
+The edge function can deliver through SMTP as well as Resend. Locally point it
+at Mailpit and every notification email lands in the inbox above:
+
+```bash
+supabase functions serve send-notifications --no-verify-jwt --env-file supabase/functions/.env.local
+SR=$(supabase status -o env | grep '^SERVICE_ROLE_KEY' | cut -d'"' -f2)
+curl -X POST http://127.0.0.1:55321/functions/v1/send-notifications -H "Authorization: Bearer $SR"
+curl -X POST "http://127.0.0.1:55321/functions/v1/send-notifications?mode=digest" -H "Authorization: Bearer $SR"
+```
+
+`supabase/functions/.env.local` (gitignored) holds `SMTP_HOST=inbucket`,
+`SMTP_PORT=1025`, `EMAIL_FROM`, `APP_URL`. In production set `RESEND_API_KEY`
+instead (or `SMTP_HOST/PORT/USER/PASS` for a company relay).
 
 ## Test gates (run all before pushing to production)
 

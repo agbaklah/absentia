@@ -6,10 +6,12 @@
 // Scheduled with pg_cron (see docs/DEPLOYMENT.md). Requires secrets:
 //   RESEND_API_KEY, EMAIL_FROM (e.g. "Absentia <hr@verve-energyresources.com>"),
 //   APP_URL (e.g. https://absentia.vercel.app)
-// Without RESEND_API_KEY the function runs in dry-run mode: it reports what it
-// would send and marks nothing, so local testing is safe.
+// Delivery: RESEND_API_KEY (production) or SMTP_HOST/SMTP_PORT (local Inbucket,
+// or any SMTP relay). With neither set the function runs in dry-run mode: it
+// reports what it would send and marks nothing, so testing is safe.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import nodemailer from "npm:nodemailer@6";
 
 type Notification = {
   id: string;
@@ -27,6 +29,18 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY");
+const SMTP_HOST = Deno.env.get("SMTP_HOST");
+const LIVE = Boolean(RESEND_KEY || SMTP_HOST);
+const smtp = SMTP_HOST
+  ? nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: Number(Deno.env.get("SMTP_PORT") ?? 587),
+      secure: Deno.env.get("SMTP_SECURE") === "true",
+      auth: Deno.env.get("SMTP_USER")
+        ? { user: Deno.env.get("SMTP_USER"), pass: Deno.env.get("SMTP_PASS") }
+        : undefined,
+    })
+  : null;
 const FROM = Deno.env.get("EMAIL_FROM") ?? "Absentia <no-reply@verve-energyresources.com>";
 const APP_URL = (Deno.env.get("APP_URL") ?? "https://absentia.vercel.app").replace(/\/$/, "");
 
@@ -54,7 +68,15 @@ async function sendEmail(
   subject: string,
   html: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!RESEND_KEY) return { ok: true }; // dry run
+  if (!LIVE) return { ok: true }; // dry run
+  if (!RESEND_KEY && smtp) {
+    try {
+      await smtp.sendMail({ from: FROM, to, subject, html });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_KEY}`, "Content-Type": "application/json" },
@@ -102,7 +124,7 @@ async function deliverPending() {
     );
     const r = await sendEmail(to, subject, html);
     results.push({ to, count: list.length, ...r });
-    if (r.ok && RESEND_KEY) {
+    if (r.ok && LIVE) {
       await supabase
         .from("notifications")
         .update({ email_sent_at: new Date().toISOString() })
@@ -112,7 +134,7 @@ async function deliverPending() {
         );
     }
   }
-  return { mode: RESEND_KEY ? "live" : "dry-run", pending: rows.length, emails: results };
+  return { mode: LIVE ? "live" : "dry-run", pending: rows.length, emails: results };
 }
 
 /** Monday digest: managers/admins get who's out + pending; CFO gets claims to review/pay. */
@@ -210,7 +232,7 @@ async function weeklyDigest() {
       });
     }
   }
-  return { mode: RESEND_KEY ? "live" : "dry-run", week: weekStart, emails: results };
+  return { mode: LIVE ? "live" : "dry-run", week: weekStart, emails: results };
 }
 
 Deno.serve(async (req) => {

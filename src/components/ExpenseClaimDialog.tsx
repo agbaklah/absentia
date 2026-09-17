@@ -36,6 +36,7 @@ import {
   type ReceiptRow,
 } from "@/lib/expenses";
 import { fmtISO } from "@/lib/leave";
+import { ReceiptViewer, type ViewerFile } from "@/components/ReceiptViewer";
 import { cn } from "@/lib/utils";
 
 type PendingFile = { id: string; file: File; preview: string | null };
@@ -75,6 +76,8 @@ export function ExpenseClaimDialog({
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
+  const [signed, setSigned] = useState<Record<string, string>>({});
 
   // (Re)load form state whenever the dialog opens.
   useEffect(() => {
@@ -104,6 +107,43 @@ export function ExpenseClaimDialog({
     [existing.data, removed],
   );
   const receiptCount = keptExisting.length + pending.length;
+
+  // Signed URLs for already-uploaded receipts so they can be previewed while editing.
+  useEffect(() => {
+    const paths = keptExisting.map((r) => r.storage_path).filter((p) => !signed[p]);
+    if (paths.length === 0) return;
+    let alive = true;
+    void supabase.storage
+      .from("receipts")
+      .createSignedUrls(paths, 3600)
+      .then(({ data }) => {
+        if (!alive || !data) return;
+        setSigned((prev) => {
+          const next = { ...prev };
+          for (const d of data) if (d.path && d.signedUrl) next[d.path] = d.signedUrl;
+          return next;
+        });
+      });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keptExisting]);
+
+  const viewerFiles: ViewerFile[] = [
+    ...keptExisting.map((r) => ({
+      name: r.file_name,
+      mime: r.mime_type,
+      size: r.size_bytes,
+      url: signed[r.storage_path] ?? null,
+    })),
+    ...pending.map((p) => ({
+      name: p.file.name,
+      mime: p.file.type,
+      size: p.file.size,
+      url: p.preview ?? (p.file.type === "application/pdf" ? URL.createObjectURL(p.file) : null),
+    })),
+  ];
   const parsedAmount = parseAmount(amount);
   const submitCheck = canSubmit({ title, amount: parsedAmount ?? 0 }, receiptCount, limit);
 
@@ -311,11 +351,17 @@ export function ExpenseClaimDialog({
           {/* Receipts ---------------------------------------------------- */}
           <div className="space-y-2">
             <Label>
-              Receipts{" "}
+              Receipts <span className="text-red-500">*</span>{" "}
               <span className="font-normal text-muted-foreground">
                 ({receiptCount} attached · JPG, PNG, PDF · max 10 MB)
               </span>
             </Label>
+            {receiptCount === 0 && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                A receipt is required — the claim can be saved as a draft, but not submitted,
+                without one.
+              </p>
+            )}
             <div
               role="button"
               tabIndex={0}
@@ -390,23 +436,25 @@ export function ExpenseClaimDialog({
 
             {(keptExisting.length > 0 || pending.length > 0) && (
               <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                {keptExisting.map((r) => (
+                {keptExisting.map((r, i) => (
                   <ReceiptTile
                     key={r.id}
                     name={r.file_name}
                     size={r.size_bytes}
                     mime={r.mime_type}
                     existing={r}
+                    onOpen={() => setViewing(i)}
                     onRemove={() => setRemoved((s) => new Set(s).add(r.id))}
                   />
                 ))}
-                {pending.map((p) => (
+                {pending.map((p, i) => (
                   <ReceiptTile
                     key={p.id}
                     name={p.file.name}
                     size={p.file.size}
                     mime={p.file.type}
                     preview={p.preview}
+                    onOpen={() => setViewing(keptExisting.length + i)}
                     onRemove={() => setPending((list) => list.filter((x) => x.id !== p.id))}
                   />
                 ))}
@@ -422,13 +470,19 @@ export function ExpenseClaimDialog({
           </Button>
           <Button
             onClick={onSubmit}
-            disabled={!!busy}
+            disabled={!!busy || !submitCheck.ok}
             title={submitCheck.ok ? undefined : submitCheck.reason}
           >
             {busy === "submit" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Submit for review
           </Button>
         </DialogFooter>
+        <ReceiptViewer
+          files={viewerFiles}
+          index={viewing}
+          onIndexChange={setViewing}
+          onClose={() => setViewing(null)}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -440,6 +494,7 @@ function ReceiptTile({
   mime,
   preview,
   existing,
+  onOpen,
   onRemove,
 }: {
   name: string;
@@ -447,6 +502,7 @@ function ReceiptTile({
   mime: string;
   preview?: string | null;
   existing?: ReceiptRow;
+  onOpen: () => void;
   onRemove: () => void;
 }) {
   const [signed, setSigned] = useState<string | null>(null);
@@ -464,13 +520,18 @@ function ReceiptTile({
   const src = preview ?? signed;
   return (
     <li className="group relative overflow-hidden rounded-md border bg-muted/30">
-      <div className="flex aspect-square items-center justify-center">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Preview ${name}`}
+        className="flex aspect-square w-full items-center justify-center hover:bg-muted/60"
+      >
         {src ? (
           <img src={src} alt={name} className="h-full w-full object-cover" />
         ) : (
           <FileText className="h-7 w-7 text-muted-foreground" />
         )}
-      </div>
+      </button>
       <div
         className="truncate px-1.5 py-1 text-[10px] leading-tight text-muted-foreground"
         title={name}

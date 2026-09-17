@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   Banknote,
   CheckCircle2,
-  ExternalLink,
+  Eye,
   FileText,
   Loader2,
   Pencil,
@@ -48,6 +48,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth-context";
 import { useReceipts } from "@/lib/data";
+import { ReceiptViewer } from "@/components/ReceiptViewer";
 import {
   CATEGORY_LABEL,
   PAYMENT_LABEL,
@@ -60,7 +61,7 @@ import {
   type ClaimRow,
   type PaymentMethod,
 } from "@/lib/expenses";
-import { fmtDayFull, fmtTimestamp } from "@/lib/leave";
+import { fmtDayShort, fmtTimestamp } from "@/lib/leave";
 import { cn } from "@/lib/utils";
 
 /**
@@ -90,6 +91,7 @@ export function ExpenseClaimSheet({
   const [ref, setRef] = useState("");
   const [confirm, setConfirm] = useState<"delete" | "reject" | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [viewing, setViewing] = useState<number | null>(null);
 
   // Reset decision inputs when switching claims.
   useEffect(() => {
@@ -177,7 +179,7 @@ export function ExpenseClaimSheet({
         <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-lg">
           {claim && status && (
             <>
-              <SheetHeader className="space-y-1 border-b px-5 py-4 text-left">
+              <SheetHeader className="space-y-1 border-b px-5 py-4 pr-12 text-left">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -198,13 +200,13 @@ export function ExpenseClaimSheet({
                     <div className="text-xs uppercase tracking-wide text-muted-foreground">
                       Amount
                     </div>
-                    <div className="font-display text-2xl font-semibold tabular">
+                    <div className="whitespace-nowrap font-display text-2xl font-semibold tabular">
                       {formatMoney(claim.amount, claim.currency)}
                     </div>
                   </div>
-                  <div className="text-right text-xs text-muted-foreground">
+                  <div className="min-w-0 text-right text-xs text-muted-foreground">
                     <div>{CATEGORY_LABEL[claim.category] ?? claim.category}</div>
-                    <div>{fmtDayFull(claim.expense_date)}</div>
+                    <div>{fmtDayShort(claim.expense_date)}</div>
                   </div>
                 </div>
 
@@ -237,16 +239,15 @@ export function ExpenseClaimSheet({
                     <div className="text-xs text-muted-foreground">No receipts attached.</div>
                   )}
                   <ul className="grid grid-cols-2 gap-2">
-                    {(receipts.data ?? []).map((r) => {
+                    {(receipts.data ?? []).map((r, i) => {
                       const url = urls[r.storage_path];
                       const img = r.mime_type.startsWith("image/");
                       return (
                         <li key={r.id} className="overflow-hidden rounded-md border">
-                          <a
-                            href={url ?? "#"}
-                            target="_blank"
-                            rel="noreferrer"
-                            className={cn("block", !url && "pointer-events-none opacity-60")}
+                          <button
+                            type="button"
+                            onClick={() => setViewing(i)}
+                            className="block w-full text-left transition-colors hover:bg-muted/60"
                           >
                             <div className="flex aspect-[4/3] items-center justify-center bg-muted/40">
                               {img && url ? (
@@ -266,13 +267,24 @@ export function ExpenseClaimSheet({
                               <span className="shrink-0 text-muted-foreground">
                                 {fmtBytes(r.size_bytes)}
                               </span>
-                              <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              <Eye className="h-3 w-3 shrink-0 text-muted-foreground" />
                             </div>
-                          </a>
+                          </button>
                         </li>
                       );
                     })}
                   </ul>
+                  <ReceiptViewer
+                    files={(receipts.data ?? []).map((r) => ({
+                      name: r.file_name,
+                      mime: r.mime_type,
+                      size: r.size_bytes,
+                      url: urls[r.storage_path] ?? null,
+                    }))}
+                    index={viewing}
+                    onIndexChange={setViewing}
+                    onClose={() => setViewing(null)}
+                  />
                 </Section>
 
                 <Section label="Timeline">

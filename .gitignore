@@ -38,5 +38,9 @@ dist-ssr
 # Tool temp dirs
 .freebuff/
 supabase/.temp/
+<<<<<<< HEAD
 supabase/.branches/
 backups/
+=======
+.env*
+>>>>>>> origin/main

@@ -33,6 +33,7 @@ export type EntryRow = {
   approved_by: string | null;
   approved_at: string | null;
   decision_note: string | null;
+  attachment_url: string | null;
 };
 export type HolidayRow = { id: string; date: string; name: string; region: string };
 export type AllowanceRow = {
@@ -42,6 +43,7 @@ export type AllowanceRow = {
   vacation_allowance_days: number;
   carried_over_days: number;
   adjustment_days: number;
+  sick_leave_allowance_days: number;
 };
 
 export const useTeams = () =>

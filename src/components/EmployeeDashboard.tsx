@@ -21,6 +21,7 @@ import { RequestLeaveDialog } from "@/components/RequestLeaveDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { KpiCard } from "@/components/KpiCard";
 import { Plane, Hourglass, Clock3, CalendarDays } from "lucide-react";
+import { LeaveBalanceWidget } from "@/components/LeaveBalanceWidget";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_COLOUR: Record<string, string> = {
@@ -71,7 +72,7 @@ export function EmployeeDashboard() {
     const a = (allowances.data ?? []).find((x) => x.employee_id === profile?.id);
     const allowance = a
       ? Number(a.vacation_allowance_days) + Number(a.carried_over_days) + Number(a.adjustment_days)
-      : 24;
+      : 21;
     const vacation = sum("vacation");
     return {
       allowance,
@@ -119,6 +120,8 @@ export function EmployeeDashboard() {
         <RequestLeaveDialog />
       </PageHeader>
 
+      <LeaveBalanceWidget />
+
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <KpiCard
           label="Annual allowance"
@@ -143,6 +146,7 @@ export function EmployeeDashboard() {
           value={String(stats.pending)}
           icon={Clock3}
           tone="neutral"
+          href="/requests"
         />
       </div>
 

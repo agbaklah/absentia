@@ -98,6 +98,7 @@ describe("reports", () => {
           employee_id: "a",
           year: 2026,
           vacation_allowance_days: 20,
+          sick_leave_allowance_days: 5,
           carried_over_days: 2,
           adjustment_days: 0,
         },

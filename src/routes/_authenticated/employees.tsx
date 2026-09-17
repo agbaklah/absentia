@@ -20,6 +20,12 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,13 +35,16 @@ import { toRequests } from "@/lib/requests-util";
 import { useAuth } from "@/lib/auth-context";
 import { isWorkEmail, WORK_EMAIL_DOMAIN } from "@/lib/work-email";
 import { authErrorMessage } from "@/lib/auth-errors";
-import { rotateUserPassword } from "@/lib/rotate-password";
+import { resetEmployeePassword } from "@/lib/reset-admin-password";
+import { deleteEmployee } from "@/lib/delete-employee";
+import { createEmployeeAccount } from "@/lib/create-employee-account";
+import { softDeleteEmployee, changeEmployeeRole, changeEmployeeTeam } from "@/lib/update-employee";
 import { passwordStrength } from "@/lib/password-strength";
 import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
 import { PageHeader } from "@/components/PageHeader";
 import { InitialsAvatar } from "@/components/InitialsAvatar";
 import { EmployeeDetailDrawer } from "@/components/EmployeeDetailDrawer";
-import { Eye, Search, UserPlus } from "lucide-react";
+import { Eye, Search, UserPlus, Trash2, Copy, CheckCircle2, KeyRound, Mail } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/employees")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -85,6 +94,8 @@ function EmployeesPage() {
   }, [searchQ]);
   const [sort, setSort] = useState<"name" | "leave">("name");
   const [resetTarget, setResetTarget] = useState<EmployeeRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EmployeeRow | null>(null);
+  const [emailResetTarget, setEmailResetTarget] = useState<EmployeeRow | null>(null);
 
   // Per-employee leave activity this year: number of requests + total days.
   const leaveByEmp = useMemo(() => {
@@ -126,16 +137,24 @@ function EmployeesPage() {
   });
 
   const softDelete = async (id: string) => {
-    const { error } = await supabase.from("profiles").update({ active: false }).eq("id", id);
-    if (error) return toast.error(error.message);
+    const result = await softDeleteEmployee({ data: { profileId: id } });
+    if (result?.error) return toast.error(result.error);
     toast.success("Employee archived");
     void qc.invalidateQueries({ queryKey: ["employees"] });
   };
 
   const changeRole = async (id: string, role: Role) => {
-    const { error } = await supabase.from("profiles").update({ role }).eq("id", id);
-    if (error) return toast.error(error.message);
+    const result = await changeEmployeeRole({ data: { profileId: id, role } });
+    if (result?.error) return toast.error(result.error);
     toast.success(`Role updated to ${role}`);
+    void qc.invalidateQueries({ queryKey: ["employees"] });
+  };
+
+  const changeTeam = async (id: string, teamId: string) => {
+    const result = await changeEmployeeTeam({ data: { profileId: id, teamId: teamId || null } });
+    if (result?.error) return toast.error(result.error);
+    const teamName = (teams.data ?? []).find((t) => t.id === teamId)?.name ?? "Unassigned";
+    toast.success(`Moved to ${teamName}`);
     void qc.invalidateQueries({ queryKey: ["employees"] });
   };
 
@@ -146,6 +165,12 @@ function EmployeesPage() {
     if (error) return toast.error(authErrorMessage(error.message));
     toast.success(`Password reset link sent to ${email}`);
   };
+
+  // Determine available password-reset actions for a given employee.
+  const canResetPassword = (e: EmployeeRow) =>
+    isAdmin && e.auth_user_id && canManageRole(isSuperAdmin, e.role);
+  const canUseTempPassword = isSuperAdmin; // only super admins generate temp pwds
+  const canUseEmailReset = true; // all admins can send email reset links
 
   return (
     <div className="space-y-6">
@@ -193,7 +218,7 @@ function EmployeesPage() {
                     key={e.id}
                     className={`border-t transition-colors hover:bg-muted/30 ${view === e.id ? "bg-muted/40" : ""}`}
                   >
-                    <td className="px-3 py-2.5">
+                    <td className="px-3 py-2.5 align-middle">
                       <button
                         type="button"
                         onClick={() => openEmployee(e.id)}
@@ -209,8 +234,26 @@ function EmployeesPage() {
                         </div>
                       </button>
                     </td>
-                    <td className="px-3 py-2.5">{team?.name ?? "—"}</td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-3 py-2.5 align-middle">
+                      {isAdmin ? (
+                        <Select value={e.team_id ?? ""} onValueChange={(v) => changeTeam(e.id, v)}>
+                          <SelectTrigger className="h-8 w-40">
+                            <SelectValue placeholder="Unassigned" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">Unassigned</SelectItem>
+                            {(teams.data ?? []).map((t) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span>{team?.name ?? "—"}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 align-middle">
                       {isAdmin && canManageRole(isSuperAdmin, e.role) ? (
                         <Select value={e.role} onValueChange={(v) => changeRole(e.id, v as Role)}>
                           <SelectTrigger className="h-8 w-32">
@@ -232,40 +275,68 @@ function EmployeesPage() {
                         </Badge>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap">
                       <span className="tabular font-medium">{leave.requests}</span>
                       <span className="text-muted-foreground">
                         {" "}
                         req · {leave.days} day{leave.days !== 1 ? "s" : ""}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{e.employment_start_date}</td>
-                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                      <Button variant="ghost" size="sm" onClick={() => openEmployee(e.id)}>
-                        <Eye className="h-3.5 w-3.5" />
-                        View
-                      </Button>
-                      <Button asChild variant="ghost" size="sm">
-                        <Link to="/employees/$id" params={{ id: e.id }}>
-                          Record
-                        </Link>
-                      </Button>
-                      {isAdmin && e.auth_user_id && canManageRole(isSuperAdmin, e.role) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            isSuperAdmin ? setResetTarget(e) : sendPasswordReset(e.email)
-                          }
-                        >
-                          Reset
+                    <td className="px-3 py-2.5 align-middle text-muted-foreground">
+                      {e.employment_start_date}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openEmployee(e.id)}>
+                          <Eye className="h-3.5 w-3.5" />
+                          View
                         </Button>
-                      )}
-                      {canManageRole(isSuperAdmin, e.role) ? (
-                        <Button variant="ghost" size="sm" onClick={() => softDelete(e.id)}>
-                          Archive
+                        <Button asChild variant="ghost" size="sm">
+                          <Link to="/employees/$id" params={{ id: e.id }}>
+                            Record
+                          </Link>
                         </Button>
-                      ) : null}
+                        {canResetPassword(e) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <KeyRound className="h-3.5 w-3.5" />
+                                Reset
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {canUseTempPassword && (
+                                <DropdownMenuItem onClick={() => setResetTarget(e)}>
+                                  <KeyRound className="mr-2 h-3.5 w-3.5" />
+                                  Generate temporary password
+                                </DropdownMenuItem>
+                              )}
+                              {canUseEmailReset && (
+                                <DropdownMenuItem onClick={() => sendPasswordReset(e.email)}>
+                                  <Mail className="mr-2 h-3.5 w-3.5" />
+                                  Send reset email
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                        {canManageRole(isSuperAdmin, e.role) ? (
+                          <Button variant="ghost" size="sm" onClick={() => softDelete(e.id)}>
+                            Archive
+                          </Button>
+                        ) : null}
+                        {isSuperAdmin && e.role !== "super_admin" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(e)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -277,42 +348,40 @@ function EmployeesPage() {
 
       <EmployeeDetailDrawer employee={selectedEmployee} onClose={closeDrawer} />
       <ResetPasswordDialog employee={resetTarget} onClose={() => setResetTarget(null)} />
+      <DeleteEmployeeDialog employee={deleteTarget} onClose={() => setDeleteTarget(null)} />
     </div>
   );
 }
 
-function ResetPasswordDialog({
+// ---------------------------------------------------------------------------
+// Hard-delete dialog (super admin only)
+// ---------------------------------------------------------------------------
+function DeleteEmployeeDialog({
   employee,
   onClose,
 }: {
   employee: EmployeeRow | null;
   onClose: () => void;
 }) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState("");
   const qc = useQueryClient();
-  const strength = passwordStrength(password);
-  const valid = strength.score === 4 && password === confirm && password.length > 0;
 
   const submit = async () => {
-    if (!employee?.auth_user_id || !valid) return;
+    if (!employee) return;
     setBusy(true);
     try {
-      const result = await rotateUserPassword({
-        data: { userId: employee.auth_user_id, newPassword: password },
-      });
+      const result = await deleteEmployee({ data: { profileId: employee.id } });
       if (result?.error) {
         toast.error(result.error);
       } else {
-        toast.success(`Password updated for ${employee.full_name}`);
-        setPassword("");
+        toast.success(`${employee.full_name} has been permanently deleted`);
         setConfirm("");
         onClose();
         void qc.invalidateQueries({ queryKey: ["employees"] });
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update password");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete employee");
     } finally {
       setBusy(false);
     }
@@ -322,41 +391,30 @@ function ResetPasswordDialog({
     <Dialog open={employee !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Set password for {employee?.full_name}</DialogTitle>
+          <DialogTitle className="text-destructive">
+            Permanently delete {employee?.full_name}?
+          </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="new-password">New password</Label>
-            <Input
-              id="new-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              aria-describedby="password-strength"
-            />
-            <PasswordStrengthMeter password={password} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="confirm-password">Confirm new password</Label>
-            <Input
-              id="confirm-password"
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Repeat the new password"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            The account owner is signed out of all devices and must use this password next.
+        <div className="space-y-3 text-sm">
+          <p>
+            This will <strong>permanently remove</strong> the employee's profile, login account, and
+            all leave records. This action cannot be undone.
           </p>
+          <p className="text-muted-foreground">
+            Type <strong>DELETE</strong> to confirm.
+          </p>
+          <Input
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="Type DELETE"
+          />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!valid || busy}>
-            {busy ? "Updating…" : "Update password"}
+          <Button variant="destructive" onClick={submit} disabled={busy || confirm !== "DELETE"}>
+            {busy ? "Deleting…" : "Permanently delete"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -364,6 +422,162 @@ function ResetPasswordDialog({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Reset password dialog — generates a temporary password on the server
+// ---------------------------------------------------------------------------
+function ResetPasswordDialog({
+  employee,
+  onClose,
+}: {
+  employee: EmployeeRow | null;
+  onClose: () => void;
+}) {
+  const [confirming, setConfirming] = useState(true);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const qc = useQueryClient();
+
+  const reset = () => {
+    setConfirming(true);
+    setTempPassword(null);
+    setCopied(false);
+    setBusy(false);
+  };
+
+  const handleClose = () => {
+    reset();
+    onClose();
+  };
+
+  const confirmReset = async () => {
+    if (!employee) return;
+    setBusy(true);
+    try {
+      const result = await resetEmployeePassword({
+        data: { profileId: employee.id },
+      });
+      if (result?.error) {
+        toast.error(result.error);
+      } else {
+        setTempPassword(result.tempPassword ?? null);
+        setConfirming(false);
+        void qc.invalidateQueries({ queryKey: ["employees"] });
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reset password");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyPassword = async () => {
+    if (!tempPassword) return;
+    try {
+      await navigator.clipboard.writeText(tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select the text for manual copy
+    }
+  };
+
+  return (
+    <Dialog open={employee !== null} onOpenChange={(o) => !o && handleClose()}>
+      <DialogContent className={tempPassword ? "max-w-lg" : undefined}>
+        {tempPassword ? (
+          /* ---- Success: show the temporary password ---- */
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                Password reset for {employee?.full_name}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+                <p className="font-medium">This temporary password will only be shown once.</p>
+                <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs opacity-80">
+                  <li>Share it securely with the employee.</li>
+                  <li>If you lose it, you must generate a new temporary password.</li>
+                </ul>
+              </div>
+
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/40">
+                <p className="mb-2 text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                  Temporary password
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded bg-white px-3 py-2 font-mono text-sm tracking-wide dark:bg-emerald-950">
+                    {tempPassword}
+                  </code>
+                  <Button variant="outline" size="sm" onClick={copyPassword} className="shrink-0">
+                    {copied ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-card p-4 text-sm">
+                <p className="mb-2 font-medium">What happens next:</p>
+                <ol className="list-inside list-decimal space-y-1 text-muted-foreground">
+                  <li>
+                    Share this temporary password with <strong>{employee?.full_name}</strong> via a
+                    secure channel (e.g. in person or encrypted message).
+                  </li>
+                  <li>
+                    The employee logs in at <strong>{window.location.host}</strong> using their
+                    email and this password.
+                  </li>
+                  <li>
+                    On first login, they'll be <strong>forced to choose a new password</strong>{" "}
+                    before they can access the dashboard.
+                  </li>
+                </ol>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleClose}>Done</Button>
+            </DialogFooter>
+          </>
+        ) : (
+          /* ---- Confirmation step ---- */
+          <>
+            <DialogHeader>
+              <DialogTitle>Reset password for {employee?.full_name}?</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 text-sm">
+              <p>
+                A cryptographically secure temporary password will be generated. The employee will
+                be required to change it on their next sign-in.
+              </p>
+              <p className="text-muted-foreground">
+                This will sign out the employee from all devices.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={handleClose} disabled={busy}>
+                Cancel
+              </Button>
+              <Button onClick={confirmReset} disabled={busy}>
+                {busy ? "Generating…" : "Confirm reset"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// New employee dialog — creates a profile row and (for super admins) an auth
+// account with a temp password.  Shows the temp password in a summary card.
+// ---------------------------------------------------------------------------
 function NewEmployeeDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -372,102 +586,250 @@ function NewEmployeeDialog() {
   const [teamId, setTeamId] = useState("");
   const [start, setStart] = useState(fmtISO(new Date()));
   const [jobTitle, setJobTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [createdName, setCreatedName] = useState("");
+  const [copied, setCopied] = useState(false);
   const teams = useTeams();
   const { isSuperAdmin } = useAuth();
   const qc = useQueryClient();
 
+  const reset = () => {
+    setName("");
+    setEmail("");
+    setRole("employee");
+    setTeamId("");
+    setStart(fmtISO(new Date()));
+    setJobTitle("");
+    setTempPassword(null);
+    setCreatedName("");
+    setCopied(false);
+    setBusy(false);
+  };
+
   const submit = async () => {
     if (!name || !email) return toast.error("Name and email required");
     if (!isWorkEmail(email)) return toast.error(`Only @${WORK_EMAIL_DOMAIN} emails are allowed`);
-    const { error } = await supabase.from("profiles").insert({
-      full_name: name,
-      email,
-      role,
-      team_id: teamId || null,
-      employment_start_date: start,
-      job_title: jobTitle.trim() || null,
-    });
-    if (error) return toast.error(error.message);
-    toast.success("Employee added — onboarding checklist started");
+    setBusy(true);
+
+    if (isSuperAdmin) {
+      // --- Step 1: insert profile row ---
+      const { data: profile, error: insertErr } = await supabase
+        .from("profiles")
+        .insert({
+          full_name: name,
+          email,
+          role,
+          team_id: teamId || null,
+          employment_start_date: start,
+          job_title: jobTitle.trim() || null,
+        })
+        .select("id")
+        .single();
+      if (insertErr || !profile) {
+        setBusy(false);
+        return toast.error(insertErr?.message ?? "Failed to create profile");
+      }
+
+      // --- Step 2: create auth account with temp password ---
+      const result = await createEmployeeAccount({
+        data: { profileId: profile.id, email, fullName: name },
+      });
+      setBusy(false);
+      if (result?.error) {
+        return toast.error(result.error);
+      }
+
+      setTempPassword(result.tempPassword ?? null);
+      setCreatedName(name);
+      toast.success(`Account created for ${name} — onboarding checklist started`);
+      void qc.invalidateQueries({ queryKey: ["employees"] });
+      void qc.invalidateQueries({ queryKey: ["checklists"] });
+    } else {
+      // Non-super-admin: just insert the profile (employee self-registers)
+      const { error } = await supabase.from("profiles").insert({
+        full_name: name,
+        email,
+        role,
+        team_id: teamId || null,
+        employment_start_date: start,
+        job_title: jobTitle.trim() || null,
+      });
+      setBusy(false);
+      if (error) return toast.error(error.message);
+      toast.success("Employee added — onboarding checklist started");
+      setOpen(false);
+      reset();
+      void qc.invalidateQueries({ queryKey: ["employees"] });
+      void qc.invalidateQueries({ queryKey: ["checklists"] });
+    }
+  };
+
+  const copyPassword = async () => {
+    if (!tempPassword) return;
+    try {
+      await navigator.clipboard.writeText(tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select the text for manual copy
+    }
+  };
+
+  const closeDialog = () => {
     setOpen(false);
-    void qc.invalidateQueries({ queryKey: ["employees"] });
-    void qc.invalidateQueries({ queryKey: ["checklists"] });
+    reset();
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) closeDialog();
+        else setOpen(true);
+      }}
+    >
       <DialogTrigger asChild>
-        <Button>
+        <Button
+          onClick={() => {
+            reset();
+            setOpen(true);
+          }}
+        >
           <UserPlus className="h-4 w-4" />
           Add employee
         </Button>
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>New employee</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Full name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Email</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Job title</Label>
-            <Input
-              value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
-              placeholder="e.g. Field Engineer"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Team</Label>
-              <Select value={teamId} onValueChange={setTeamId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose team" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(teams.data ?? []).map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      <DialogContent className={tempPassword ? "max-w-lg" : undefined}>
+        {tempPassword ? (
+          /* ---- Summary: show the temp password ---- */
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                Account created for {createdName}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/40">
+                <p className="mb-2 text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                  Temporary password
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded bg-white px-3 py-2 font-mono text-sm tracking-wide dark:bg-emerald-950">
+                    {tempPassword}
+                  </code>
+                  <Button variant="outline" size="sm" onClick={copyPassword} className="shrink-0">
+                    {copied ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-lg border bg-card p-4 text-sm">
+                <p className="mb-2 font-medium">What happens next:</p>
+                <ol className="list-inside list-decimal space-y-1 text-muted-foreground">
+                  <li>
+                    Share this temporary password with <strong>{createdName}</strong> via a secure
+                    channel (e.g. in person or encrypted message).
+                  </li>
+                  <li>
+                    The employee logs in at <strong>{window.location.host}</strong> using their
+                    email and this password.
+                  </li>
+                  <li>
+                    On first login, they'll be <strong>forced to choose a new password</strong>{" "}
+                    before they can access the dashboard.
+                  </li>
+                </ol>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  {isSuperAdmin && <SelectItem value="admin">Admin</SelectItem>}
-                  {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
-                  {isSuperAdmin && <SelectItem value="cfo">CFO</SelectItem>}
-                </SelectContent>
-              </Select>
+            <DialogFooter>
+              <Button onClick={closeDialog}>Done</Button>
+            </DialogFooter>
+          </>
+        ) : (
+          /* ---- Form: create the employee ---- */
+          <>
+            <DialogHeader>
+              <DialogTitle>New employee</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Full name</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Job title</Label>
+                <Input
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                  placeholder="e.g. Field Engineer"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Team</Label>
+                  <Select value={teamId} onValueChange={setTeamId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose team" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(teams.data ?? []).map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Role</Label>
+                  <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="employee">Employee</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      {isSuperAdmin && <SelectItem value="admin">Admin</SelectItem>}
+                      {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
+                      {isSuperAdmin && <SelectItem value="cfo">CFO</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Start date</Label>
+                <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+              </div>
+              {isSuperAdmin ? (
+                <p className="text-xs text-muted-foreground">
+                  A login account will be created automatically with a temporary password. The
+                  employee must change it on first sign-in.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  The employee gains login access by creating an account with this exact email on
+                  the sign-in page — they'll be linked to this record automatically and keep the
+                  role set here.
+                </p>
+              )}
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Start date</Label>
-            <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            The employee gains login access by creating an account with this exact email on the
-            sign-in page — they’ll be linked to this record automatically and keep the role set
-            here.
-          </p>
-        </div>
-        <DialogFooter>
-          <Button onClick={submit}>Add</Button>
-        </DialogFooter>
+            <DialogFooter>
+              <Button onClick={submit} disabled={busy}>
+                {busy ? "Creating…" : isSuperAdmin ? "Create account" : "Add"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

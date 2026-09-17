@@ -3,7 +3,9 @@
 # Password for every account: Passw0rd!Local
 set -euo pipefail
 API="http://127.0.0.1:55321"
-KEY="sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz"
+# Service key of the LOCAL stack (read from `supabase status`, never hardcoded).
+KEY=$(supabase status -o env 2>/dev/null | grep -E '^SERVICE_ROLE_KEY' | cut -d'"' -f2)
+[ -n "$KEY" ] || { echo "Local Supabase is not running (supabase start)"; exit 1; }
 PASS="Passw0rd!Local"
 SQL="$(dirname "$0")/sql.sh"
 

@@ -161,12 +161,11 @@ function ManagementRequests() {
     };
   }, [teams.data, employees.data, profile, isAdmin, canApproveLeave]);
 
+  // Every manager sees the whole queue; only requests they may decide on get
+  // buttons — the rest show who they are waiting for.
   const pending = useMemo(
-    () =>
-      (entries.data ?? []).filter(
-        (e) => e.status === "pending" && (isViewer || isAdmin || canDecideFor(e.employee_id)),
-      ),
-    [entries.data, isViewer, isAdmin, canDecideFor],
+    () => (entries.data ?? []).filter((e) => e.status === "pending"),
+    [entries.data],
   );
   const requests = useMemo(() => toRequests(pending), [pending]);
 
@@ -361,7 +360,18 @@ function ManagementRequests() {
                     </div>
                   ) : (
                     <Badge variant="outline" className="shrink-0 self-start">
-                      {isViewer ? "View only" : "Awaiting department head"}
+                      {isViewer
+                        ? "View only"
+                        : `Awaiting ${
+                            (teams.data ?? []).find((t) => t.id === emp?.team_id)?.manager_id
+                              ? ((employees.data ?? []).find(
+                                  (e) =>
+                                    e.id ===
+                                    (teams.data ?? []).find((t) => t.id === emp?.team_id)
+                                      ?.manager_id,
+                                )?.full_name ?? "department head")
+                              : "admin"
+                          }`}
                     </Badge>
                   )}
                 </div>

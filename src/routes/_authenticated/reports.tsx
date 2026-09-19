@@ -79,9 +79,10 @@ function ReportsPage() {
   const settings = useSettings();
   const claims = useClaims({ enabled: canReviewExpenses });
 
-  // Department heads / managers only see the departments they are responsible
-  // for; admins, the CFO and reports-only viewers see the whole organisation.
-  const scopeAll = isAdmin || isViewer;
+  // Everyone in management — admins, the CFO, department heads, managers and
+  // reports-only viewers — sees the whole organisation's reports. Approval
+  // rights stay scoped to a head's own departments (see the Requests queue).
+  const scopeAll = isManagement || isAdmin || isViewer;
   const myTeamIds = useMemo(
     () =>
       new Set(

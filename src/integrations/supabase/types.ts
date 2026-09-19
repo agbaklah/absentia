@@ -1197,6 +1197,7 @@ export type Database = {
         Args: { _role: Database["public"]["Enums"]["app_role"] };
         Returns: boolean;
       };
+      heads_team_of: { Args: { _employee: string }; Returns: boolean };
       is_excluded_from: { Args: { _employee: string }; Returns: boolean };
       leave_approvers_for: { Args: { _employee: string }; Returns: string[] };
       notify: {
@@ -1259,7 +1260,7 @@ export type Database = {
       };
     };
     Enums: {
-      app_role: "admin" | "manager" | "employee" | "super_admin" | "cfo";
+      app_role: "admin" | "manager" | "employee" | "super_admin" | "cfo" | "viewer";
       expense_status: "draft" | "submitted" | "approved" | "rejected" | "paid";
       leave_status: "pending" | "approved" | "rejected" | "cancelled";
       payment_method: "cash" | "momo" | "bank_transfer";
@@ -1387,7 +1388,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      app_role: ["admin", "manager", "employee", "super_admin", "cfo"],
+      app_role: ["admin", "manager", "employee", "super_admin", "cfo", "viewer"],
       expense_status: ["draft", "submitted", "approved", "rejected", "paid"],
       leave_status: ["pending", "approved", "rejected", "cancelled"],
       payment_method: ["cash", "momo", "bank_transfer"],

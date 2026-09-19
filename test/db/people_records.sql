@@ -26,15 +26,17 @@ BEGIN
   PERFORM pg_temp.check((SELECT count(*) FROM employee_private WHERE profile_id = kofi) = 0, 'colleague cannot read private record');
   PERFORM pg_temp.as_user('kwame@verve-energyresources.com');
   PERFORM pg_temp.check((SELECT momo_number FROM employee_payout_details WHERE profile_id = kofi) = '0241234567', 'cfo reads payout details');
-  UPDATE employee_private SET momo_number = 'x' WHERE profile_id = kofi; -- RLS filters to 0 rows
-  PERFORM pg_temp.check((SELECT momo_number FROM employee_payout_details WHERE profile_id = kofi) = '0241234567', 'cfo cannot edit private record');
+  -- CFO carries admin powers ("Admin + CFO"), so may correct payout details.
+  UPDATE employee_private SET momo_number = '0249999999' WHERE profile_id = kofi;
+  PERFORM pg_temp.check((SELECT momo_number FROM employee_payout_details WHERE profile_id = kofi) = '0249999999', 'cfo (admin) can edit private record');
   PERFORM pg_temp.as_user('esi@verve-energyresources.com');
   UPDATE employee_private SET bank_name = 'GCB' WHERE profile_id = kofi;
   PERFORM pg_temp.as_service();
   PERFORM pg_temp.check((SELECT updated_by FROM employee_private WHERE profile_id = kofi) = esi, 'updated_by stamped');
   SELECT count(*) INTO n FROM audit_log WHERE entity='employee_private' AND entity_id = kofi::text;
-  PERFORM pg_temp.check(n = 2, 'private record audited (insert + update), got ' || n);
-  PERFORM pg_temp.check((SELECT after->'fields_changed' FROM audit_log WHERE entity='employee_private' AND action='update' ORDER BY ts DESC LIMIT 1) = '["bank_name"]'::jsonb, 'audit lists changed field only');
+  PERFORM pg_temp.check(n = 3, 'private record audited (insert + 2 updates), got ' || n);
+  -- (both updates share one transaction timestamp, so match by content)
+  PERFORM pg_temp.check(EXISTS (SELECT 1 FROM audit_log WHERE entity='employee_private' AND action='update' AND after->'fields_changed' = '["bank_name"]'::jsonb), 'audit lists changed field only');
 
   -- Job history auto-tracking ------------------------------------------------
   PERFORM pg_temp.as_user('esi@verve-energyresources.com');

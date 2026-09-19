@@ -54,7 +54,7 @@ export const Route = createFileRoute("/_authenticated/employees")({
   component: EmployeesPage,
 });
 
-type Role = "employee" | "manager" | "admin" | "super_admin" | "cfo";
+type Role = "employee" | "manager" | "admin" | "super_admin" | "cfo" | "viewer";
 
 const roleTone: Record<Role, "secondary" | "outline" | "default"> = {
   employee: "secondary",
@@ -62,6 +62,7 @@ const roleTone: Record<Role, "secondary" | "outline" | "default"> = {
   admin: "default",
   super_admin: "default",
   cfo: "default",
+  viewer: "outline",
 };
 
 const roleLabel: Record<Role, string> = {
@@ -70,6 +71,7 @@ const roleLabel: Record<Role, string> = {
   admin: "Admin",
   super_admin: "Super Admin",
   cfo: "CFO",
+  viewer: "Reports only",
 };
 
 // Only a super admin can manage admin/super_admin/cfo accounts (the CFO role
@@ -267,6 +269,7 @@ function EmployeesPage() {
                               <SelectItem value="super_admin">Super Admin</SelectItem>
                             )}
                             {isSuperAdmin && <SelectItem value="cfo">CFO</SelectItem>}
+                            <SelectItem value="viewer">Reports only</SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (
@@ -802,6 +805,7 @@ function NewEmployeeDialog() {
                       {isSuperAdmin && <SelectItem value="admin">Admin</SelectItem>}
                       {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                       {isSuperAdmin && <SelectItem value="cfo">CFO</SelectItem>}
+                      <SelectItem value="viewer">Reports only</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

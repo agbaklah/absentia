@@ -19,7 +19,8 @@ BEGIN
   SELECT count(*) INTO n FROM notifications WHERE kind='leave.requested' AND recipient_id=ama;
   PERFORM pg_temp.check(n = 1, 'manager got exactly one notification for a 3-day request, got ' || n);
   SELECT count(*) INTO n FROM notifications WHERE kind='leave.requested' AND recipient_id=esi;
-  PERFORM pg_temp.check(n = 1, 'admin got one, got ' || n);
+  -- Engineers has a department head (Ama), so admins are not notified.
+  PERFORM pg_temp.check(n = 0, 'admin not notified when a head exists, got ' || n);
   SELECT count(*) INTO n FROM notifications WHERE kind='leave.requested' AND recipient_id IN (kofi, kwame);
   PERFORM pg_temp.check(n = 0, 'employee/cfo not notified, got ' || n);
   RAISE NOTICE 'body: %', (SELECT body FROM notifications WHERE kind='leave.requested' AND recipient_id=ama);

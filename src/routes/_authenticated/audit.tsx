@@ -41,8 +41,8 @@ const ACTION_TONE: Record<string, "default" | "secondary" | "destructive" | "out
 };
 
 function AuditPage() {
-  const { loading, isAdmin } = useAuth();
-  const audit = useAuditLog({ enabled: isAdmin, limit: 500 });
+  const { loading, isAdmin, isViewer } = useAuth();
+  const audit = useAuditLog({ enabled: isAdmin || isViewer, limit: 500 });
   const employees = useEmployees();
   const [q, setQ] = useState("");
   const [entity, setEntity] = useState("all");
@@ -96,7 +96,7 @@ function AuditPage() {
   };
 
   if (loading) return null;
-  if (!isAdmin) return <Navigate to="/dashboard" />;
+  if (!isAdmin && !isViewer) return <Navigate to="/dashboard" />;
 
   return (
     <div className="space-y-6">

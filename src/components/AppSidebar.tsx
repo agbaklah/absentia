@@ -67,15 +67,17 @@ const roleLabel: Record<string, string> = {
   employee: "Employee",
   super_admin: "Super Administrator",
   cfo: "Chief Financial Officer",
+  viewer: "Reports & Oversight",
 };
 
 export function AppSidebar() {
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const { profile, signOut, isManagement, isAdmin, canReviewExpenses } = useAuth();
+  const { profile, signOut, isManagement, isAdmin, isViewer, canReviewExpenses } = useAuth();
   const items = isManagement
-    ? isAdmin
-      ? [...managementItems, { title: "Audit Log", url: "/audit", icon: ScrollText }]
-      : managementItems
+    ? [
+        ...managementItems.filter((it) => it.url !== "/settings" || isAdmin),
+        ...(isAdmin || isViewer ? [{ title: "Audit Log", url: "/audit", icon: ScrollText }] : []),
+      ]
     : employeeItems;
   // Pending requests needing attention: org-wide for management, own for employees.
   const entries = useEntries(new Date().getFullYear());

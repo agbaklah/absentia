@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
-export type Role = "admin" | "manager" | "employee" | "super_admin" | "cfo";
+export type Role = "admin" | "manager" | "employee" | "super_admin" | "cfo" | "viewer";
 
 export type Profile = {
   id: string;
@@ -23,8 +23,12 @@ type AuthCtx = {
   isManagement: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
-  /** Chief Financial Officer — owns petty-cash review and reimbursement. */
+  /** Chief Financial Officer — owns petty-cash review and reimbursement (also an admin). */
   isCfo: boolean;
+  /** Reports-only oversight: sees everything, approves nothing. */
+  isViewer: boolean;
+  /** May approve/reject leave (admins, managers, department heads). */
+  canApproveLeave: boolean;
   /** May open the expense review queue (CFO decides; admins read-only). */
   canReviewExpenses: boolean;
   /** May approve / reject / pay claims (CFO, or super admin as fallback). */
@@ -75,12 +79,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     loading,
     isManagement:
-      profile?.role === "admin" || profile?.role === "manager" || profile?.role === "super_admin",
-    isAdmin: profile?.role === "admin" || profile?.role === "super_admin",
+      profile?.role === "admin" ||
+      profile?.role === "manager" ||
+      profile?.role === "super_admin" ||
+      profile?.role === "cfo" ||
+      profile?.role === "viewer",
+    // cfo carries admin powers ("Admin + CFO"), mirroring has_role('admin') in the DB.
+    isAdmin:
+      profile?.role === "admin" || profile?.role === "super_admin" || profile?.role === "cfo",
     isSuperAdmin: profile?.role === "super_admin",
     isCfo: profile?.role === "cfo",
+    isViewer: profile?.role === "viewer",
+    canApproveLeave:
+      profile?.role === "admin" ||
+      profile?.role === "manager" ||
+      profile?.role === "super_admin" ||
+      profile?.role === "cfo",
     canReviewExpenses:
-      profile?.role === "cfo" || profile?.role === "admin" || profile?.role === "super_admin",
+      profile?.role === "cfo" ||
+      profile?.role === "admin" ||
+      profile?.role === "super_admin" ||
+      profile?.role === "viewer",
     canDecideExpenses: profile?.role === "cfo" || profile?.role === "super_admin",
     signOut: async () => {
       await supabase.auth.signOut();

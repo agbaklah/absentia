@@ -1,5 +1,5 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Download, Stethoscope, TrendingUp, Users, Wallet } from "lucide-react";
 import {
   Bar,
@@ -67,7 +67,7 @@ const grid = "color-mix(in oklch, var(--border) 70%, transparent)";
 
 /** Management reports: leave usage, liability, sickness, petty cash, headcount. */
 function ReportsPage() {
-  const { loading, isManagement, canReviewExpenses } = useAuth();
+  const { loading, isManagement, isAdmin, isViewer, canReviewExpenses, profile } = useAuth();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [teamId, setTeamId] = useState("all");
@@ -79,16 +79,39 @@ function ReportsPage() {
   const settings = useSettings();
   const claims = useClaims({ enabled: canReviewExpenses });
 
+  // Department heads / managers only see the departments they are responsible
+  // for; admins, the CFO and reports-only viewers see the whole organisation.
+  const scopeAll = isAdmin || isViewer;
+  const myTeamIds = useMemo(
+    () =>
+      new Set(
+        (teams.data ?? [])
+          .filter((t) => t.manager_id === profile?.id || t.id === profile?.team_id)
+          .map((t) => t.id),
+      ),
+    [teams.data, profile?.id, profile?.team_id],
+  );
+  const inScope = useCallback(
+    (tid: string | null) => scopeAll || (tid != null && myTeamIds.has(tid)),
+    [scopeAll, myTeamIds],
+  );
+
   const emps = useMemo(
-    () => (employees.data ?? []).filter((e) => teamId === "all" || e.team_id === teamId),
-    [employees.data, teamId],
+    () =>
+      (employees.data ?? []).filter(
+        (e) => inScope(e.team_id) && (teamId === "all" || e.team_id === teamId),
+      ),
+    [employees.data, teamId, inScope],
   );
   const empIds = useMemo(() => new Set(emps.map((e) => e.id)), [emps]);
   const ents = useMemo(
     () => (entries.data ?? []).filter((e) => empIds.has(e.employee_id)),
     [entries.data, empIds],
   );
-  const teamList = useMemo(() => teams.data ?? [], [teams.data]);
+  const teamList = useMemo(
+    () => (teams.data ?? []).filter((t) => inScope(t.id)),
+    [teams.data, inScope],
+  );
 
   const byTeam = useMemo(() => leaveByTeam(ents, emps, teamList), [ents, emps, teamList]);
   const trend = useMemo(() => monthlyTrend(ents, year), [ents, year]);
@@ -112,10 +135,12 @@ function ReportsPage() {
   const headcount = useMemo(
     () =>
       headcountByMonth(
-        (allProfiles.data ?? []).filter((p) => teamId === "all" || p.team_id === teamId),
+        (allProfiles.data ?? []).filter(
+          (p) => inScope(p.team_id) && (teamId === "all" || p.team_id === teamId),
+        ),
         year,
       ),
-    [allProfiles.data, teamId, year],
+    [allProfiles.data, teamId, year, inScope],
   );
   const currency = settings.data?.currency ?? "GHS";
   const totalRemaining = liability.reduce((s, r) => s + Math.max(0, r.remaining), 0);
@@ -159,7 +184,7 @@ function ReportsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All teams</SelectItem>
+            <SelectItem value="all">{scopeAll ? "All teams" : "My departments"}</SelectItem>
             {teamList.map((t) => (
               <SelectItem key={t.id} value={t.id}>
                 {t.name}

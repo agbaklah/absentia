@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 });
 
 function SettingsPage() {
-  const { loading: authLoading, isManagement } = useAuth();
+  const { loading: authLoading, isAdmin } = useAuth();
   const [defAllow, setDefAllow] = useState(21);
   const [carryCap, setCarryCap] = useState(5);
   const [maxAbs, setMaxAbs] = useState(3);
@@ -77,7 +77,7 @@ function SettingsPage() {
   };
 
   if (authLoading) return null;
-  if (!isManagement) return <Navigate to="/dashboard" />;
+  if (!isAdmin) return <Navigate to="/dashboard" />;
 
   return (
     <div className="space-y-6">

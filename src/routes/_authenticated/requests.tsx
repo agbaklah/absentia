@@ -134,7 +134,7 @@ function leavePeriod(all: EntryRow[], target: EntryRow) {
 // ---------------------------------------------------------------------------
 function ManagementRequests() {
   const year = new Date().getFullYear();
-  const { profile } = useAuth();
+  const { profile, isAdmin, isViewer, canApproveLeave } = useAuth();
   const entries = useEntries(year);
   const employees = useEmployees();
   const teams = useTeams();
@@ -143,9 +143,30 @@ function ManagementRequests() {
   const [comments, setComments] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<EntryRow | null>(null);
 
+  // Which employees this person may decide on (mirrors can_approve_for):
+  // admins/cfo/super admin → everyone; department heads → their departments;
+  // managers → their own team; viewers → nobody (read-only queue).
+  const canDecideFor = useMemo(() => {
+    const headOf = new Set(
+      (teams.data ?? []).filter((t) => t.manager_id === profile?.id).map((t) => t.id),
+    );
+    return (empId: string) => {
+      if (!canApproveLeave || empId === profile?.id) return false;
+      if (isAdmin) return true;
+      const emp = (employees.data ?? []).find((e) => e.id === empId);
+      if (!emp?.team_id) return false;
+      return (
+        headOf.has(emp.team_id) || (profile?.role === "manager" && emp.team_id === profile.team_id)
+      );
+    };
+  }, [teams.data, employees.data, profile, isAdmin, canApproveLeave]);
+
   const pending = useMemo(
-    () => (entries.data ?? []).filter((e) => e.status === "pending"),
-    [entries.data],
+    () =>
+      (entries.data ?? []).filter(
+        (e) => e.status === "pending" && (isViewer || isAdmin || canDecideFor(e.employee_id)),
+      ),
+    [entries.data, isViewer, isAdmin, canDecideFor],
   );
   const requests = useMemo(() => toRequests(pending), [pending]);
 
@@ -212,8 +233,15 @@ function ManagementRequests() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Leave requests" description="Approve, deny, or reduce pending requests.">
-        <ManagementRequestDialog />
+      <PageHeader
+        title="Leave requests"
+        description={
+          isViewer
+            ? "Pending requests across the organisation (read-only)."
+            : "Approve, deny, or reduce pending requests."
+        }
+      >
+        {canApproveLeave && <ManagementRequestDialog />}
       </PageHeader>
 
       <Card className="p-4">
@@ -275,61 +303,67 @@ function ManagementRequests() {
                       )}
                     </div>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700"
-                      onClick={() =>
-                        decide(
-                          ids,
-                          "rejected",
-                          comment,
-                          emp
-                            ? {
-                                employeeId: emp.id,
-                                leaveType: t?.label ?? code,
-                                dates: `${dates[0]} → ${dates[dates.length - 1]}`,
-                              }
-                            : undefined,
-                        )
-                      }
-                    >
-                      <XCircle className="h-3.5 w-3.5" />
-                      Deny
-                    </Button>
-                    {req.items.length > 1 && (
-                      <ReduceDialog
-                        req={req}
-                        empName={emp?.full_name ?? "employee"}
-                        empId={emp?.id}
-                        leaveType={t?.label ?? code}
-                        dates={dates}
-                        comment={comment}
-                        onReduce={reduce}
-                      />
-                    )}
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        decide(
-                          ids,
-                          "approved",
-                          comment,
-                          emp
-                            ? {
-                                employeeId: emp.id,
-                                leaveType: t?.label ?? code,
-                                dates: `${dates[0]} → ${dates[dates.length - 1]}`,
-                              }
-                            : undefined,
-                        )
-                      }
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Approve
-                    </Button>
-                  </div>
+                  {canDecideFor(req.empId) ? (
+                    <div className="flex shrink-0 gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700"
+                        onClick={() =>
+                          decide(
+                            ids,
+                            "rejected",
+                            comment,
+                            emp
+                              ? {
+                                  employeeId: emp.id,
+                                  leaveType: t?.label ?? code,
+                                  dates: `${dates[0]} → ${dates[dates.length - 1]}`,
+                                }
+                              : undefined,
+                          )
+                        }
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        Deny
+                      </Button>
+                      {req.items.length > 1 && (
+                        <ReduceDialog
+                          req={req}
+                          empName={emp?.full_name ?? "employee"}
+                          empId={emp?.id}
+                          leaveType={t?.label ?? code}
+                          dates={dates}
+                          comment={comment}
+                          onReduce={reduce}
+                        />
+                      )}
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          decide(
+                            ids,
+                            "approved",
+                            comment,
+                            emp
+                              ? {
+                                  employeeId: emp.id,
+                                  leaveType: t?.label ?? code,
+                                  dates: `${dates[0]} → ${dates[dates.length - 1]}`,
+                                }
+                              : undefined,
+                          )
+                        }
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Approve
+                      </Button>
+                    </div>
+                  ) : (
+                    <Badge variant="outline" className="shrink-0 self-start">
+                      {isViewer ? "View only" : "Awaiting department head"}
+                    </Badge>
+                  )}
                 </div>
 
                 {guidance && (
@@ -339,13 +373,15 @@ function ManagementRequests() {
                   </div>
                 )}
 
-                <Textarea
-                  rows={2}
-                  placeholder="Add a comment for the employee (optional) — e.g. request a doctor's report…"
-                  value={comment}
-                  onChange={(ev) => setComments((c) => ({ ...c, [key]: ev.target.value }))}
-                  className="text-sm"
-                />
+                {canDecideFor(req.empId) && (
+                  <Textarea
+                    rows={2}
+                    placeholder="Add a comment for the employee (optional) — e.g. request a doctor's report…"
+                    value={comment}
+                    onChange={(ev) => setComments((c) => ({ ...c, [key]: ev.target.value }))}
+                    className="text-sm"
+                  />
+                )}
               </div>
             );
           })}

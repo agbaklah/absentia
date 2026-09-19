@@ -49,6 +49,7 @@ const roleLabel: Record<string, string> = {
   admin: "Admin",
   super_admin: "Super Admin",
   cfo: "CFO",
+  viewer: "Reports only",
 };
 
 /**

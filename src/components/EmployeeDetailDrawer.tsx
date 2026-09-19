@@ -136,48 +136,61 @@ export function EmployeeDetailDrawer({
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         {employee && (
           <>
-            <SheetHeader className="border-b pb-4">
-              <div className="flex items-center gap-3">
-                <InitialsAvatar name={employee.full_name} className="h-12 w-12 text-base" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <SheetTitle className="text-lg truncate">{employee.full_name}</SheetTitle>
+            <SheetHeader className="border-b pb-4 pr-8">
+              <div className="flex items-start gap-3">
+                <InitialsAvatar
+                  name={employee.full_name}
+                  className="h-12 w-12 shrink-0 text-base"
+                />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <SheetTitle className="min-w-0 text-lg leading-tight">
+                      {employee.full_name}
+                    </SheetTitle>
                     <Badge variant={roleTone[employee.role] ?? "secondary"} className="shrink-0">
                       {roleLabel[employee.role] ?? employee.role}
                     </Badge>
                   </div>
-                  <SheetDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="inline-flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      {employee.email}
-                    </span>
-                    <span className="text-muted-foreground/50">·</span>
-                    {isAdmin ? (
-                      <Select
-                        value={employee.team_id ?? ""}
-                        onValueChange={(v) => changeTeam(employee.id, v)}
+                  <SheetDescription asChild>
+                    <div className="space-y-1.5 text-sm text-muted-foreground">
+                      {/* Email on its own line; never broken across lines. */}
+                      <a
+                        href={`mailto:${employee.email}`}
+                        className="flex min-w-0 items-center gap-1.5 hover:text-foreground"
+                        title={employee.email}
                       >
-                        <SelectTrigger
-                          className="h-6 w-auto min-w-[8rem] border-0 bg-transparent p-0 text-xs text-muted-foreground hover:bg-muted"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <SelectValue placeholder="Unassigned" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">Unassigned</SelectItem>
-                          {(teams.data ?? []).map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        {team?.name ?? "Unassigned"}
-                      </span>
-                    )}
+                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{employee.email}</span>
+                      </a>
+                      <div className="flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 shrink-0" />
+                        {isAdmin ? (
+                          <Select
+                            value={employee.team_id ?? ""}
+                            onValueChange={(v) => changeTeam(employee.id, v)}
+                          >
+                            <SelectTrigger
+                              className="h-7 w-auto min-w-[9rem] gap-1 rounded-full border bg-muted/60 px-2.5 py-0 text-xs font-medium text-foreground hover:bg-muted"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <SelectValue placeholder="Unassigned" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">Unassigned</SelectItem>
+                              {(teams.data ?? []).map((t) => (
+                                <SelectItem key={t.id} value={t.id}>
+                                  {t.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="inline-flex h-7 items-center rounded-full border bg-muted/60 px-2.5 text-xs font-medium text-foreground">
+                            {team?.name ?? "Unassigned"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </SheetDescription>
                 </div>
               </div>

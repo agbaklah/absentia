@@ -762,7 +762,9 @@ function ManagementRequestDialog() {
       return toast.error("Choose valid start and end dates");
     if (e < s) return toast.error("End date is before start date");
     if (!empId) return toast.error("Choose an employee");
-    if (!note.trim()) return toast.error("Please provide a reason for this leave request");
+    const target = (employees.data ?? []).find((e) => e.id === empId);
+    if (!note.trim() && !target?.leave_reason_optional)
+      return toast.error("Please provide a reason for this leave request");
 
     if (isSick) {
       const sickDays = eachDayISO(start, end).filter((d) => !isWorkingDayISO(d, holidaySet)).length;
@@ -905,13 +907,17 @@ function ManagementRequestDialog() {
           <LeaveValidationNotice result={validation.result} checking={validation.checking} />
           <div className="space-y-1.5">
             <Label>
-              Reason <span className="text-red-500">*</span>
+              Reason{" "}
+              {(employees.data ?? []).find((e) => e.id === empId)?.leave_reason_optional ? (
+                <span className="font-normal text-muted-foreground">(optional)</span>
+              ) : (
+                <span className="text-red-500">*</span>
+              )}
             </Label>
             <Textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Please provide a reason for this leave request"
-              required
             />
           </div>
           {isSick && (

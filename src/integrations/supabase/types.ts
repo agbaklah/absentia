@@ -1014,6 +1014,7 @@ export type Database = {
           full_name: string;
           id: string;
           job_title: string | null;
+          leave_reason_optional: boolean;
           location: string | null;
           password_changed_at: string | null;
           phone: string | null;
@@ -1036,6 +1037,7 @@ export type Database = {
           full_name: string;
           id?: string;
           job_title?: string | null;
+          leave_reason_optional?: boolean;
           location?: string | null;
           password_changed_at?: string | null;
           phone?: string | null;
@@ -1058,6 +1060,7 @@ export type Database = {
           full_name?: string;
           id?: string;
           job_title?: string | null;
+          leave_reason_optional?: boolean;
           location?: string | null;
           password_changed_at?: string | null;
           phone?: string | null;

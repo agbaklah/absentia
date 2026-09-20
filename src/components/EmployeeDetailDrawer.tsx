@@ -241,7 +241,11 @@ export function EmployeeDetailDrawer({
                 )}
               </section>
 
-              <BalanceHistory employeeId={employee.id} policyId={employee.policy_id ?? null} />
+              <BalanceHistory
+                employeeId={employee.id}
+                policyId={employee.policy_id ?? null}
+                reasonOptional={employee.leave_reason_optional}
+              />
 
               {/* Leave history for the year */}
               <section>

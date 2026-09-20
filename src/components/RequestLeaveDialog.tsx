@@ -64,6 +64,15 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
 
   const employees = useEmployees({ enabled: isManagement });
 
+  // Some staff are waived from giving a reason for regular leave.
+  const targetProfile =
+    isManagement && targetEmployeeId
+      ? (employees.data ?? []).find((e) => e.id === targetEmployeeId)
+      : null;
+  const reasonRequired = !(targetProfile
+    ? targetProfile.leave_reason_optional
+    : (profile?.leave_reason_optional ?? false));
+
   // The employee this request is filed for.
   const selectedEmployeeId = isManagement
     ? targetEmployeeId || profile?.id || ""
@@ -112,7 +121,8 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
       return toast.error(validation.result.errors[0] ?? "This request breaks a leave policy rule.");
     if (isSuperAdmin && selectedEmployeeId === profile?.id)
       return toast.error("Super admins cannot request leave for themselves");
-    if (!note.trim()) return toast.error("Please provide a reason for this leave request");
+    if (!note.trim() && reasonRequired)
+      return toast.error("Please provide a reason for this leave request");
 
     // Sick leave validation
     if (isSick) {
@@ -380,20 +390,31 @@ export function RequestLeaveDialog({ trigger }: { trigger?: ReactNode }) {
           <LeaveValidationNotice result={validation.result} checking={validation.checking} />
           <div>
             <Label>
-              Reason <span className="text-red-500">*</span>
+              Reason{" "}
+              {reasonRequired ? (
+                <span className="text-red-500">*</span>
+              ) : (
+                <span className="font-normal text-muted-foreground">(optional)</span>
+              )}
             </Label>
             <Textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Please provide a reason for this leave request"
-              required
+              placeholder={
+                reasonRequired ? "Please provide a reason for this leave request" : "Optional"
+              }
+              required={reasonRequired}
             />
           </div>
         </div>
         <DialogFooter>
           <Button
             onClick={submit}
-            disabled={busy || !note.trim() || (validation.result ? !validation.result.ok : false)}
+            disabled={
+              busy ||
+              (reasonRequired && !note.trim()) ||
+              (validation.result ? !validation.result.ok : false)
+            }
           >
             {busy ? "Submitting…" : "Submit request"}
           </Button>

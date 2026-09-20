@@ -5,6 +5,7 @@ import { History, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -40,9 +41,11 @@ const kindLabel: Record<BalanceTxRow["kind"], string> = {
 export function BalanceHistory({
   employeeId,
   policyId,
+  reasonOptional = false,
 }: {
   employeeId: string;
   policyId: string | null;
+  reasonOptional?: boolean;
 }) {
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
@@ -56,6 +59,16 @@ export function BalanceHistory({
   const [busy, setBusy] = useState(false);
   const names = new Map((employees.data ?? []).map((e) => [e.id, e.full_name]));
   const defaultPolicy = (policies.data ?? []).find((p) => p.is_default);
+
+  const setReasonOptional = async (v: boolean) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ leave_reason_optional: v })
+      .eq("id", employeeId);
+    if (error) return toast.error(error.message);
+    toast.success(v ? "Reason no longer required for regular leave" : "Reason required again");
+    void qc.invalidateQueries({ queryKey: ["employees"] });
+  };
 
   const setPolicy = async (v: string) => {
     const { error } = await supabase
@@ -130,6 +143,16 @@ export function BalanceHistory({
           </span>
         )}
       </div>
+
+      {isAdmin && (
+        <label className="mb-2 flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+          <span className="text-xs text-muted-foreground">
+            Reason optional for regular leave
+            <span className="block text-[11px]">Sick leave still needs a doctor's report.</span>
+          </span>
+          <Switch checked={reasonOptional} onCheckedChange={setReasonOptional} />
+        </label>
+      )}
 
       {(tx.data ?? []).length === 0 ? (
         <p className="rounded-md border bg-muted/30 px-3 py-3 text-center text-xs text-muted-foreground">

@@ -12,6 +12,8 @@ export type Profile = {
   team_id: string | null;
   force_password_change: boolean;
   temp_password_expires_at: string | null;
+  /** Regular leave may be filed without a reason (admin-granted). */
+  leave_reason_optional: boolean;
 };
 
 type AuthCtx = {
@@ -52,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "id, full_name, email, role, team_id, force_password_change, temp_password_expires_at",
+        "id, full_name, email, role, team_id, force_password_change, temp_password_expires_at, leave_reason_optional",
       )
       .eq("auth_user_id", uid)
       .maybeSingle();

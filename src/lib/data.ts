@@ -16,6 +16,7 @@ export type EmployeeRow = {
   job_title: string | null;
   phone: string | null;
   location: string | null;
+  leave_reason_optional: boolean;
   employment_type: "full_time" | "part_time" | "contract" | "intern";
   employment_end_date: string | null;
   custom_fields: Record<string, unknown>;
@@ -64,7 +65,7 @@ export const useEmployees = (opts?: { enabled?: boolean }) =>
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, full_name, email, role, team_id, employment_start_date, active, auth_user_id, policy_id, job_title, phone, location, employment_type, employment_end_date, custom_fields",
+          "id, full_name, email, role, team_id, employment_start_date, active, auth_user_id, policy_id, job_title, phone, location, employment_type, employment_end_date, custom_fields, leave_reason_optional",
         )
         .eq("active", true)
         .order("full_name");
@@ -343,7 +344,7 @@ export const useAllProfiles = (opts?: { enabled?: boolean }) =>
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, full_name, email, role, team_id, employment_start_date, active, auth_user_id, policy_id, job_title, phone, location, employment_type, employment_end_date, custom_fields",
+          "id, full_name, email, role, team_id, employment_start_date, active, auth_user_id, policy_id, job_title, phone, location, employment_type, employment_end_date, custom_fields, leave_reason_optional",
         )
         .order("full_name");
       if (error) throw error;

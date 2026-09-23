@@ -36,7 +36,8 @@ BEGIN
   -- Kwame's department (Sales/Tech) has no head → admins/cfo/super admin notified, not the head.
   SELECT count(*) INTO n FROM notifications WHERE kind='leave.requested' AND recipient_id=ama
     AND created_at > (SELECT max(created_at) FROM leave_entries WHERE employee_id=kwame) - interval '1 minute' AND body LIKE '%' ;
-  PERFORM pg_temp.check((SELECT count(*) FROM notifications WHERE kind='leave.requested' AND recipient_id=(SELECT id FROM profiles WHERE email='verveit@verve-energyresources.com')) = 1, 'super admin notified only for headless department');
+  -- Super admins receive an oversight copy of every request (headed or not).
+  PERFORM pg_temp.check((SELECT count(*) FROM notifications WHERE kind='leave.requested' AND recipient_id=(SELECT id FROM profiles WHERE email='verveit@verve-energyresources.com')) = 3, 'super admin copied on every request');
   -- Departments with a head do NOT notify admins.
   PERFORM pg_temp.check((SELECT count(*) FROM notifications WHERE kind='leave.requested' AND recipient_id=esi) = 0, 'viewer never notified');
 

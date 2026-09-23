@@ -123,7 +123,8 @@ BEGIN
   PERFORM pg_temp.as_service();
   SELECT count(*) INTO n FROM notifications WHERE kind='expense.submitted'
     AND recipient_id = (SELECT id FROM profiles WHERE email='verveit@verve-energyresources.com');
-  PERFORM pg_temp.check(n = 1, 'super admin notified when the CFO is the claimant, got ' || n);
+  -- Super admins are copied on every claim, including the CFO's own.
+  PERFORM pg_temp.check(n = 2, 'super admin copied on claims, got ' || n);
   PERFORM pg_temp.as_user('verveit@verve-energyresources.com');
   UPDATE expense_claims SET status='rejected', decision_note='Use company car' WHERE id=claim;
   PERFORM pg_temp.check((SELECT status FROM expense_claims WHERE id=claim) = 'rejected', 'super admin rejected cfo claim');

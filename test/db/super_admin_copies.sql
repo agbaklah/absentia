@@ -29,8 +29,10 @@ BEGIN
   INSERT INTO expense_claims(claimant_id,title,amount) VALUES (kofi,'Taxi',50) RETURNING id INTO claim;
   INSERT INTO expense_receipts(claim_id,storage_path,file_name,mime_type,size_bytes) VALUES (claim, kofi||'/'||claim||'/r.jpg','r.jpg','image/jpeg',10);
   UPDATE expense_claims SET status='submitted' WHERE id=claim;
-  PERFORM pg_temp.as_user('kwame@verve-energyresources.com');
+  -- Approval is the department head's; payment is the CFO's.
+  PERFORM pg_temp.as_user('ama@verve-energyresources.com');
   UPDATE expense_claims SET status='approved' WHERE id=claim;
+  PERFORM pg_temp.as_user('kwame@verve-energyresources.com');
   UPDATE expense_claims SET status='paid', payment_method='momo' WHERE id=claim;
   PERFORM pg_temp.as_service();
   SELECT count(*) INTO n FROM notifications WHERE recipient_id=sa AND kind LIKE 'expense.%';

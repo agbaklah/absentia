@@ -3,6 +3,7 @@ DO $$
 DECLARE
   kofi uuid := (SELECT id FROM profiles WHERE email='kofi@verve-energyresources.com');
   kwame uuid := (SELECT id FROM profiles WHERE email='kwame@verve-energyresources.com');
+  ama uuid := (SELECT id FROM profiles WHERE email='ama@verve-energyresources.com');
   yaw uuid := (SELECT id FROM profiles WHERE email='yaw@verve-energyresources.com');
   claim uuid;
   n int;
@@ -55,7 +56,7 @@ BEGIN
   PERFORM pg_temp.check((SELECT submitted_at IS NOT NULL FROM expense_claims WHERE id=claim), 'submitted_at set');
   PERFORM pg_temp.expect_error(
     format('UPDATE expense_claims SET status=''approved'' WHERE id=%L', claim),
-    'Only the CFO can approve');
+    'department''s head');
   -- no edits after submit
   PERFORM pg_temp.expect_error(
     format('UPDATE expense_claims SET amount=1 WHERE id=%L', claim),
@@ -71,10 +72,12 @@ BEGIN
   DELETE FROM expense_claims WHERE id = claim;
   PERFORM pg_temp.check((SELECT count(*) FROM expense_claims WHERE id=claim) = 1, 'submitted claim not deletable');
 
-  -- CFO notified exactly once
+  -- The department head is notified exactly once; the CFO waits for approval.
   PERFORM pg_temp.as_service();
+  SELECT count(*) INTO n FROM notifications WHERE recipient_id=ama AND kind='expense.submitted';
+  PERFORM pg_temp.check(n = 1, 'head got one submitted notification, got ' || n);
   SELECT count(*) INTO n FROM notifications WHERE recipient_id=kwame AND kind='expense.submitted';
-  PERFORM pg_temp.check(n = 1, 'cfo got one submitted notification, got ' || n);
+  PERFORM pg_temp.check(n = 0, 'cfo not notified before approval, got ' || n);
 
   -- Yaw (another employee) cannot see Kofi's claim -------------------------
   PERFORM pg_temp.as_user('yaw@verve-energyresources.com');
@@ -87,14 +90,17 @@ BEGIN
   UPDATE expense_claims SET status='approved' WHERE id=claim;
   PERFORM pg_temp.check((SELECT status FROM expense_claims WHERE id=claim) = 'submitted', 'admin update filtered by RLS');
 
-  -- Kwame (CFO) approves then pays -----------------------------------------
+  -- The head approves; the CFO then pays ------------------------------------
   PERFORM pg_temp.as_user('kwame@verve-energyresources.com');
   PERFORM pg_temp.check((SELECT count(*) FROM expense_receipts WHERE claim_id=claim) = 1, 'cfo can see receipts');
   PERFORM pg_temp.expect_error(
     format('UPDATE expense_claims SET status=''paid'' WHERE id=%L', claim),
     'Cannot move a claim from submitted to paid');
+  PERFORM pg_temp.as_user('ama@verve-energyresources.com');
+  PERFORM pg_temp.check((SELECT count(*) FROM expense_receipts WHERE claim_id=claim) = 1, 'head can see receipts');
   UPDATE expense_claims SET status='approved', decision_note='OK' WHERE id=claim;
-  PERFORM pg_temp.check((SELECT reviewed_by = kwame FROM expense_claims WHERE id=claim), 'reviewed_by = cfo');
+  PERFORM pg_temp.check((SELECT approved_by = ama FROM expense_claims WHERE id=claim), 'approved_by = department head');
+  PERFORM pg_temp.as_user('kwame@verve-energyresources.com');
   PERFORM pg_temp.expect_error(
     format('UPDATE expense_claims SET status=''paid'' WHERE id=%L', claim),
     'Choose a payment method');

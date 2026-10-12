@@ -27,6 +27,9 @@ import { useReceipts, useSettings } from "@/lib/data";
 import {
   EXPENSE_CATEGORIES,
   canSubmit,
+  kindNeedsReceipt,
+  EXPENSE_KINDS,
+  type ExpenseKind,
   fmtBytes,
   formatMoney,
   parseAmount,
@@ -68,6 +71,7 @@ export function ExpenseClaimDialog({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<string>("other");
+  const [kind, setKind] = useState<ExpenseKind>("out_of_pocket");
   const [amount, setAmount] = useState("");
   const [expenseDate, setExpenseDate] = useState(fmtISO(new Date()));
   const [pending, setPending] = useState<PendingFile[]>([]);
@@ -85,6 +89,7 @@ export function ExpenseClaimDialog({
     setTitle(claim?.title ?? "");
     setDescription(claim?.description ?? "");
     setCategory(claim?.category ?? "other");
+    setKind(claim?.kind ?? "out_of_pocket");
     setAmount(claim ? String(claim.amount) : "");
     setExpenseDate(claim?.expense_date ?? fmtISO(new Date()));
     setPending([]);
@@ -145,7 +150,8 @@ export function ExpenseClaimDialog({
     })),
   ];
   const parsedAmount = parseAmount(amount);
-  const submitCheck = canSubmit({ title, amount: parsedAmount ?? 0 }, receiptCount, limit);
+  const submitCheck = canSubmit({ title, amount: parsedAmount ?? 0, kind }, receiptCount, limit);
+  const receiptsRequired = kindNeedsReceipt(kind);
 
   const addFiles = (files: FileList | File[]) => {
     const next: PendingFile[] = [];
@@ -179,6 +185,7 @@ export function ExpenseClaimDialog({
       title: title.trim(),
       description: description.trim() || null,
       category,
+      kind,
       amount: parsedAmount,
       expense_date: expenseDate,
     };
@@ -280,11 +287,34 @@ export function ExpenseClaimDialog({
             {claim ? `Edit claim #${claim.claim_no}` : "New petty cash claim"}
           </DialogTitle>
           <DialogDescription>
-            Attach the receipt(s) and submit — the CFO reviews and reimburses.
+            Your department head approves it, then the CFO pays it out.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Which is this?</Label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {EXPENSE_KINDS.map((k) => (
+                <button
+                  key={k.code}
+                  type="button"
+                  onClick={() => setKind(k.code)}
+                  aria-pressed={kind === k.code}
+                  className={cn(
+                    "rounded-lg border p-3 text-left transition-colors",
+                    kind === k.code
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-input hover:bg-accent",
+                  )}
+                >
+                  <div className="text-sm font-medium">{k.label}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">{k.blurb}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="claim-title">What was it for?</Label>
             <Input
@@ -351,17 +381,23 @@ export function ExpenseClaimDialog({
           {/* Receipts ---------------------------------------------------- */}
           <div className="space-y-2">
             <Label>
-              Receipts <span className="text-red-500">*</span>{" "}
+              Receipts{receiptsRequired && <span className="text-red-500"> *</span>}{" "}
               <span className="font-normal text-muted-foreground">
                 ({receiptCount} attached · JPG, PNG, PDF · max 10 MB)
               </span>
             </Label>
-            {receiptCount === 0 && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                A receipt is required — the claim can be saved as a draft, but not submitted,
-                without one.
-              </p>
-            )}
+            {receiptCount === 0 &&
+              (receiptsRequired ? (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  A receipt is required — the claim can be saved as a draft, but not submitted,
+                  without one.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No receipt needed for an advance — there is nothing to show yet. Attach one anyway
+                  if it helps explain the errand.
+                </p>
+              ))}
             <div
               role="button"
               tabIndex={0}

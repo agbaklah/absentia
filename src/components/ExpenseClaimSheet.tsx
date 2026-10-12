@@ -47,7 +47,7 @@ import { InitialsAvatar } from "@/components/InitialsAvatar";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth-context";
-import { useReceipts } from "@/lib/data";
+import { useReceipts, useTeams, useEmployees } from "@/lib/data";
 import { ReceiptViewer } from "@/components/ReceiptViewer";
 import {
   CATEGORY_LABEL,
@@ -55,6 +55,7 @@ import {
   PAYMENT_METHODS,
   STATUS_META,
   actionsFor,
+  canApproveClaimFor,
   fmtBytes,
   formatMoney,
   type ClaimAction,
@@ -82,7 +83,7 @@ export function ExpenseClaimSheet({
   onClose: () => void;
   onEdit: (claim: ClaimRow) => void;
 }) {
-  const { profile, canDecideExpenses } = useAuth();
+  const { profile, canPayExpenses } = useAuth();
   const qc = useQueryClient();
   const receipts = useReceipts(claim?.id ?? null);
   const [busy, setBusy] = useState<ClaimAction | null>(null);
@@ -121,12 +122,31 @@ export function ExpenseClaimSheet({
     };
   }, [receipts.data]);
 
+  // Approval is the claimant's department head; payment is the CFO's.
+  const teams = useTeams();
+  const people = useEmployees();
+  const canApprove = useMemo(
+    () =>
+      claim
+        ? canApproveClaimFor(
+            claim.claimant_id,
+            { profileId: profile?.id ?? null, role: profile?.role ?? null },
+            teams.data ?? [],
+            people.data ?? [],
+          )
+        : false,
+    [claim, profile?.id, profile?.role, teams.data, people.data],
+  );
   const actions = useMemo(
     () =>
       claim
-        ? actionsFor(claim, { profileId: profile?.id ?? null, canDecide: canDecideExpenses })
+        ? actionsFor(claim, {
+            profileId: profile?.id ?? null,
+            canApprove,
+            canPay: canPayExpenses,
+          })
         : [],
-    [claim, profile?.id, canDecideExpenses],
+    [claim, profile?.id, canApprove, canPayExpenses],
   );
   const can = (a: ClaimAction) => actions.includes(a);
 

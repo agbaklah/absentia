@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   actionsFor,
+  canApproveClaimFor,
   canSubmit,
   claimsToCsv,
   formatMoney,
@@ -24,11 +25,14 @@ const base: ClaimRow = {
   amount: 350,
   currency: "GHS",
   expense_date: "2026-09-10",
+  kind: "out_of_pocket",
   status: "draft",
   submitted_at: null,
   reviewed_by: null,
   reviewed_at: null,
   decision_note: null,
+  approved_by: null,
+  approved_at: null,
   paid_by: null,
   paid_at: null,
   payment_method: null,
@@ -93,26 +97,33 @@ describe("canSubmit", () => {
 });
 
 describe("actionsFor", () => {
-  const owner = { profileId: "emp", canDecide: false };
-  const cfo = { profileId: "cfo", canDecide: true };
-  const other = { profileId: "x", canDecide: false };
+  const owner = { profileId: "emp", canApprove: false, canPay: false };
+  const head = { profileId: "head", canApprove: true, canPay: false };
+  const cfo = { profileId: "cfo", canApprove: false, canPay: true };
+  const other = { profileId: "x", canApprove: false, canPay: false };
   it("draft: owner edits/submits/deletes, nobody else", () => {
     assert.deepEqual(actionsFor({ ...base, status: "draft" }, owner), ["edit", "submit", "delete"]);
+    assert.deepEqual(actionsFor({ ...base, status: "draft" }, head), []);
     assert.deepEqual(actionsFor({ ...base, status: "draft" }, cfo), []);
   });
-  it("submitted: owner withdraws, cfo decides", () => {
+  it("submitted: owner withdraws, the department head decides — not the CFO", () => {
     assert.deepEqual(actionsFor({ ...base, status: "submitted" }, owner), ["withdraw"]);
-    assert.deepEqual(actionsFor({ ...base, status: "submitted" }, cfo), ["approve", "reject"]);
+    assert.deepEqual(actionsFor({ ...base, status: "submitted" }, head), ["approve", "reject"]);
+    assert.deepEqual(actionsFor({ ...base, status: "submitted" }, cfo), []);
     assert.deepEqual(actionsFor({ ...base, status: "submitted" }, other), []);
   });
-  it("cfo never decides their own claim", () => {
-    assert.deepEqual(actionsFor({ ...base, claimant_id: "cfo", status: "submitted" }, cfo), [
+  it("nobody decides their own claim — they are only its owner", () => {
+    assert.deepEqual(actionsFor({ ...base, claimant_id: "head", status: "submitted" }, head), [
       "withdraw",
     ]);
+    assert.deepEqual(actionsFor({ ...base, claimant_id: "cfo", status: "approved" }, cfo), []);
   });
-  it("approved → pay/reject by cfo; rejected → reopen by owner; paid → nothing", () => {
+  it("approved: the CFO pays, and either hand may still stop it", () => {
     assert.deepEqual(actionsFor({ ...base, status: "approved" }, cfo), ["pay", "reject"]);
+    assert.deepEqual(actionsFor({ ...base, status: "approved" }, head), ["reject"]);
     assert.deepEqual(actionsFor({ ...base, status: "approved" }, owner), []);
+  });
+  it("rejected → reopen by owner; paid → nothing", () => {
     assert.deepEqual(actionsFor({ ...base, status: "rejected" }, owner), ["reopen"]);
     assert.deepEqual(actionsFor({ ...base, status: "paid" }, cfo), []);
   });
@@ -153,8 +164,82 @@ describe("totals + csv", () => {
     );
     const lines = csv.split("\n");
     assert.equal(lines[0].startsWith("Claim #,Claimant,Title"), true);
-    assert.ok(lines[1].includes('1001,Kofi Boateng,"Taxi, ""airport""",Fuel'));
+    // Kind sits between the title and the category, so finance can tell an
+    // advance from money the employee has already spent.
+    assert.ok(lines[1].includes('1001,Kofi Boateng,"Taxi, ""airport""",Out-of-pocket,Fuel'));
     assert.ok(lines[1].includes("Kwame Mensah"));
     assert.ok(lines[1].includes("Mobile money"));
+  });
+});
+
+describe("canApproveClaimFor", () => {
+  const teams = [
+    { id: "eng", manager_id: "aaron" },
+    { id: "sales", manager_id: "kwame" },
+    { id: "interns", manager_id: null },
+  ];
+  const people = [
+    { id: "kofi", team_id: "eng" },
+    { id: "theo", team_id: "sales" },
+    { id: "dorcas", team_id: "interns" },
+    { id: "aaron", team_id: "eng" },
+    { id: "kwame", team_id: "finance" },
+  ];
+
+  it("lets the department head approve their own team", () => {
+    assert.equal(
+      canApproveClaimFor("kofi", { profileId: "aaron", role: "manager" }, teams, people),
+      true,
+    );
+  });
+
+  it("does not let another department's head approve", () => {
+    assert.equal(
+      canApproveClaimFor("theo", { profileId: "aaron", role: "manager" }, teams, people),
+      false,
+    );
+  });
+
+  it("does not let the CFO approve a team that has its own head", () => {
+    assert.equal(
+      canApproveClaimFor("kofi", { profileId: "kwame", role: "cfo" }, teams, people),
+      false,
+    );
+  });
+
+  it("falls back to org-wide authority when the team has no head", () => {
+    assert.equal(
+      canApproveClaimFor("dorcas", { profileId: "kwame", role: "cfo" }, teams, people),
+      true,
+    );
+    assert.equal(
+      canApproveClaimFor("dorcas", { profileId: "aaron", role: "manager" }, teams, people),
+      false,
+    );
+  });
+
+  it("never lets anyone approve their own claim", () => {
+    assert.equal(
+      canApproveClaimFor("aaron", { profileId: "aaron", role: "manager" }, teams, people),
+      false,
+    );
+  });
+
+  it("sends a head's own claim to org-wide authority instead", () => {
+    assert.equal(
+      canApproveClaimFor("aaron", { profileId: "kwame", role: "cfo" }, teams, people),
+      true,
+    );
+  });
+
+  it("treats someone with no team as org-wide business", () => {
+    assert.equal(
+      canApproveClaimFor("ghost", { profileId: "kwame", role: "cfo" }, teams, people),
+      true,
+    );
+    assert.equal(
+      canApproveClaimFor("ghost", { profileId: "kofi", role: "employee" }, teams, people),
+      false,
+    );
   });
 });

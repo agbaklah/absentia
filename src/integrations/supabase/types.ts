@@ -571,6 +571,8 @@ export type Database = {
       expense_claims: {
         Row: {
           amount: number;
+          approved_at: string | null;
+          approved_by: string | null;
           category: string;
           claim_no: number;
           claimant_id: string;
@@ -580,6 +582,8 @@ export type Database = {
           description: string | null;
           expense_date: string;
           id: string;
+          kind: Database["public"]["Enums"]["expense_kind"];
+          last_reminded_at: string | null;
           paid_at: string | null;
           paid_by: string | null;
           payment_method: Database["public"]["Enums"]["payment_method"] | null;
@@ -593,6 +597,8 @@ export type Database = {
         };
         Insert: {
           amount: number;
+          approved_at?: string | null;
+          approved_by?: string | null;
           category?: string;
           claim_no?: number;
           claimant_id: string;
@@ -602,6 +608,8 @@ export type Database = {
           description?: string | null;
           expense_date?: string;
           id?: string;
+          kind?: Database["public"]["Enums"]["expense_kind"];
+          last_reminded_at?: string | null;
           paid_at?: string | null;
           paid_by?: string | null;
           payment_method?: Database["public"]["Enums"]["payment_method"] | null;
@@ -615,6 +623,8 @@ export type Database = {
         };
         Update: {
           amount?: number;
+          approved_at?: string | null;
+          approved_by?: string | null;
           category?: string;
           claim_no?: number;
           claimant_id?: string;
@@ -624,6 +634,8 @@ export type Database = {
           description?: string | null;
           expense_date?: string;
           id?: string;
+          kind?: Database["public"]["Enums"]["expense_kind"];
+          last_reminded_at?: string | null;
           paid_at?: string | null;
           paid_by?: string | null;
           payment_method?: Database["public"]["Enums"]["payment_method"] | null;
@@ -636,6 +648,13 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "expense_claims_approved_by_fkey";
+            columns: ["approved_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "expense_claims_claimant_id_fkey";
             columns: ["claimant_id"];
@@ -793,6 +812,7 @@ export type Database = {
           decision_note: string | null;
           employee_id: string;
           id: string;
+          last_reminded_at: string | null;
           leave_code: string;
           note: string | null;
           requested_by: string | null;
@@ -807,6 +827,7 @@ export type Database = {
           decision_note?: string | null;
           employee_id: string;
           id?: string;
+          last_reminded_at?: string | null;
           leave_code: string;
           note?: string | null;
           requested_by?: string | null;
@@ -821,6 +842,7 @@ export type Database = {
           decision_note?: string | null;
           employee_id?: string;
           id?: string;
+          last_reminded_at?: string | null;
           leave_code?: string;
           note?: string | null;
           requested_by?: string | null;
@@ -1186,16 +1208,30 @@ export type Database = {
         Args: { _as_of?: string; _employee: string; _year: number };
         Returns: number;
       };
+      can_approve_claim_for: { Args: { _claimant: string }; Returns: boolean };
       can_approve_for: { Args: { _employee: string }; Returns: boolean };
       can_decide_expenses: { Args: never; Returns: boolean };
+      can_pay_claims: { Args: never; Returns: boolean };
       can_review_expenses: { Args: never; Returns: boolean };
       can_see_checklist: { Args: { _checklist: string }; Returns: boolean };
+      can_see_claim_of: { Args: { _claimant: string }; Returns: boolean };
+      cron_job_status: {
+        Args: never;
+        Returns: {
+          active: boolean;
+          jobname: string;
+          schedule: string;
+        }[];
+      };
       current_profile_id: { Args: never; Returns: string };
       current_role: {
         Args: never;
         Returns: Database["public"]["Enums"]["app_role"];
       };
       current_team_id: { Args: never; Returns: string };
+      expense_approvers_for: { Args: { _claimant: string }; Returns: string[] };
+      expense_deciders_for: { Args: { _claimant: string }; Returns: string[] };
+      expense_payers_for: { Args: { _claimant: string }; Returns: string[] };
       has_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] };
         Returns: boolean;
@@ -1241,6 +1277,8 @@ export type Database = {
         Args: { _profile_id: string };
         Returns: Database["public"]["Enums"]["app_role"];
       };
+      remind_stale_expense_claims: { Args: never; Returns: number };
+      remind_stale_leave_requests: { Args: never; Returns: number };
       resolve_assignee: {
         Args: { _employee: string; _role: string };
         Returns: string;
@@ -1264,6 +1302,7 @@ export type Database = {
     };
     Enums: {
       app_role: "admin" | "manager" | "employee" | "super_admin" | "cfo" | "viewer";
+      expense_kind: "advance" | "out_of_pocket";
       expense_status: "draft" | "submitted" | "approved" | "rejected" | "paid";
       leave_status: "pending" | "approved" | "rejected" | "cancelled";
       payment_method: "cash" | "momo" | "bank_transfer";
@@ -1392,6 +1431,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "manager", "employee", "super_admin", "cfo", "viewer"],
+      expense_kind: ["advance", "out_of_pocket"],
       expense_status: ["draft", "submitted", "approved", "rejected", "paid"],
       leave_status: ["pending", "approved", "rejected", "cancelled"],
       payment_method: ["cash", "momo", "bank_transfer"],

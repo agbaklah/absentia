@@ -53,7 +53,7 @@ function MyExpensesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Petty cash"
-        description="Claim back money you spent for work — upload the receipt and the CFO reimburses you."
+        description="Ask for an advance before an errand, or claim back money you spent yourself. Your department head approves it; the CFO pays it out."
       >
         <Button onClick={() => setEditing(null)}>
           <Plus className="h-4 w-4" />

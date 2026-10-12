@@ -31,10 +31,10 @@ type AuthCtx = {
   isViewer: boolean;
   /** May approve/reject leave (admins, managers, department heads). */
   canApproveLeave: boolean;
-  /** May open the expense review queue (CFO decides; admins read-only). */
+  /** May open the expense review queue (CFO, admins, and department heads). */
   canReviewExpenses: boolean;
-  /** May approve / reject / pay claims (CFO, or super admin as fallback). */
-  canDecideExpenses: boolean;
+  /** May pay an approved claim — the CFO's hand alone (super admin as fallback). */
+  canPayExpenses: boolean;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -97,12 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile?.role === "manager" ||
       profile?.role === "super_admin" ||
       profile?.role === "cfo",
+    // Department heads need the queue too: approval is theirs now. The queue
+    // only ever shows what RLS lets them read, which is their own team.
     canReviewExpenses:
       profile?.role === "cfo" ||
       profile?.role === "admin" ||
       profile?.role === "super_admin" ||
+      profile?.role === "manager" ||
       profile?.role === "viewer",
-    canDecideExpenses: profile?.role === "cfo" || profile?.role === "super_admin",
+    canPayExpenses: profile?.role === "cfo" || profile?.role === "super_admin",
     signOut: async () => {
       await supabase.auth.signOut();
     },

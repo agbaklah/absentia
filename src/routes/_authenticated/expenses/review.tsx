@@ -38,6 +38,7 @@ import {
   PAYMENT_METHODS,
   STATUS_META,
   claimsToCsv,
+  KIND_LABEL,
   formatMoney,
   paidInMonth,
   totalsByStatus,
@@ -66,7 +67,7 @@ const TABS: { key: Tab; label: string }[] = [
 
 /** CFO queue (admins read-only): review, reimburse, export. */
 function ReviewPage() {
-  const { loading, canReviewExpenses, canDecideExpenses, profile } = useAuth();
+  const { loading, canReviewExpenses, canPayExpenses, profile } = useAuth();
   const claims = useClaims({ enabled: canReviewExpenses });
   const employees = useEmployees();
   const settings = useSettings();
@@ -147,9 +148,9 @@ function ReviewPage() {
       <PageHeader
         title="Expense review"
         description={
-          canDecideExpenses
-            ? "Review petty cash claims, then reimburse approved ones."
-            : "Read-only view of petty cash claims."
+          canPayExpenses
+            ? "Approve what is yours to approve, then pay out what has been approved."
+            : "Approve petty cash for your department. The CFO pays out."
         }
       >
         <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
@@ -227,7 +228,7 @@ function ReviewPage() {
           </Select>
         </div>
 
-        {tab === "approved" && canDecideExpenses && payableSelected.length > 0 && (
+        {tab === "approved" && canPayExpenses && payableSelected.length > 0 && (
           <div className="mb-3 flex items-center justify-between rounded-md border bg-primary/5 px-3 py-2 text-sm">
             <span>
               {payableSelected.length} selected ·{" "}
@@ -249,7 +250,7 @@ function ReviewPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                {tab === "approved" && canDecideExpenses && <th className="w-8 px-3 py-2" />}
+                {tab === "approved" && canPayExpenses && <th className="w-8 px-3 py-2" />}
                 <th className="px-3 py-2">#</th>
                 <th className="px-3 py-2">Employee</th>
                 <th className="px-3 py-2">Claim</th>
@@ -263,14 +264,14 @@ function ReviewPage() {
               {filtered.map((c) => {
                 const s = STATUS_META[c.status];
                 const selectable =
-                  tab === "approved" && canDecideExpenses && c.claimant_id !== profile?.id;
+                  tab === "approved" && canPayExpenses && c.claimant_id !== profile?.id;
                 return (
                   <tr
                     key={c.id}
                     onClick={() => openClaim(c.id)}
                     className={`cursor-pointer border-t transition-colors hover:bg-muted/30 ${view === c.id ? "bg-muted/40" : ""}`}
                   >
-                    {tab === "approved" && canDecideExpenses && (
+                    {tab === "approved" && canPayExpenses && (
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         {selectable && (
                           <Checkbox
@@ -301,7 +302,7 @@ function ReviewPage() {
                     <td className="max-w-[16rem] px-3 py-2">
                       <div className="truncate font-medium">{c.title}</div>
                       <div className="truncate text-xs text-muted-foreground">
-                        {CATEGORY_LABEL[c.category] ?? c.category}
+                        {KIND_LABEL[c.kind]} · {CATEGORY_LABEL[c.category] ?? c.category}
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">

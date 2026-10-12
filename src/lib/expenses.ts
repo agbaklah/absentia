@@ -7,6 +7,13 @@
 export type ExpenseStatus = "draft" | "submitted" | "approved" | "rejected" | "paid";
 export type PaymentMethod = "cash" | "momo" | "bank_transfer";
 
+/**
+ * Two ways money moves. An advance is asked for *before* the errand, so there
+ * is nothing to show yet; out-of-pocket means the employee already paid with
+ * their own money and wants it back, which needs a receipt.
+ */
+export type ExpenseKind = "advance" | "out_of_pocket";
+
 export type ClaimRow = {
   id: string;
   claim_no: number;
@@ -17,11 +24,14 @@ export type ClaimRow = {
   amount: number;
   currency: string;
   expense_date: string;
+  kind: ExpenseKind;
   status: ExpenseStatus;
   submitted_at: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
   decision_note: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
   paid_by: string | null;
   paid_at: string | null;
   payment_method: PaymentMethod | null;
@@ -39,6 +49,35 @@ export type ReceiptRow = {
   size_bytes: number;
   uploaded_at: string;
 };
+
+export const EXPENSE_KINDS: {
+  code: ExpenseKind;
+  label: string;
+  blurb: string;
+  needsReceipt: boolean;
+}[] = [
+  {
+    code: "advance",
+    label: "Advance",
+    blurb: "You need the money up front for an errand. No receipt yet.",
+    needsReceipt: false,
+  },
+  {
+    code: "out_of_pocket",
+    label: "Out-of-pocket",
+    blurb: "You already paid with your own money and want it back.",
+    needsReceipt: true,
+  },
+];
+
+export const KIND_LABEL: Record<ExpenseKind, string> = {
+  advance: "Advance",
+  out_of_pocket: "Out-of-pocket",
+};
+
+export function kindNeedsReceipt(kind: ExpenseKind): boolean {
+  return kind === "out_of_pocket";
+}
 
 export const EXPENSE_CATEGORIES = [
   { code: "fuel", label: "Fuel" },
@@ -72,14 +111,22 @@ export const STATUS_META: Record<
   { label: string; tone: "default" | "secondary" | "destructive" | "outline"; hint: string }
 > = {
   draft: { label: "Draft", tone: "outline", hint: "Not yet sent for review." },
-  submitted: { label: "Pending", tone: "secondary", hint: "Waiting for the CFO to review." },
-  approved: { label: "Approved", tone: "default", hint: "Approved — awaiting reimbursement." },
+  submitted: {
+    label: "Pending",
+    tone: "secondary",
+    hint: "Waiting for your department head to approve.",
+  },
+  approved: {
+    label: "Approved",
+    tone: "default",
+    hint: "Approved by your department head — with the CFO for payment.",
+  },
   rejected: {
     label: "Rejected",
     tone: "destructive",
     hint: "Not approved. You can edit and resubmit.",
   },
-  paid: { label: "Paid", tone: "default", hint: "Reimbursed." },
+  paid: { label: "Paid", tone: "default", hint: "Paid out by the CFO." },
 };
 
 export const STATUS_ORDER: ExpenseStatus[] = ["submitted", "approved", "paid", "rejected", "draft"];
@@ -147,7 +194,7 @@ export function validateReceiptFile(file: { type: string; size: number }): strin
 
 /** Client-side mirror of the submit rules so users get instant feedback. */
 export function canSubmit(
-  claim: { amount: number; title: string },
+  claim: { amount: number; title: string; kind?: ExpenseKind },
   receiptCount: number,
   limit: number | null,
 ): { ok: true } | { ok: false; reason: string } {
@@ -155,35 +202,66 @@ export function canSubmit(
   if (!(claim.amount > 0)) return { ok: false, reason: "Enter an amount greater than zero." };
   if (limit && limit > 0 && claim.amount > limit)
     return { ok: false, reason: `Amount exceeds the petty cash limit of ${formatMoney(limit)}.` };
-  if (receiptCount === 0) return { ok: false, reason: "Attach at least one receipt." };
+  // An advance has nothing to show yet; money already spent must be evidenced.
+  if (kindNeedsReceipt(claim.kind ?? "out_of_pocket") && receiptCount === 0)
+    return { ok: false, reason: "Attach at least one receipt." };
   return { ok: true };
 }
 
 export type ClaimAction =
   "edit" | "submit" | "withdraw" | "delete" | "reopen" | "approve" | "reject" | "pay";
 
-/** Which buttons a viewer may see for a claim (the DB re-checks all of them). */
+/**
+ * Which buttons a viewer may see for a claim (the DB re-checks all of them).
+ * Approving and paying are now different hands: the claimant's department head
+ * approves, the CFO pays.
+ */
 export function actionsFor(
   claim: Pick<ClaimRow, "status" | "claimant_id">,
-  viewer: { profileId: string | null; canDecide: boolean },
+  viewer: { profileId: string | null; canApprove: boolean; canPay: boolean },
 ): ClaimAction[] {
   const own = viewer.profileId === claim.claimant_id;
-  const reviewer = viewer.canDecide && !own;
+  const approver = viewer.canApprove && !own;
+  const payer = viewer.canPay && !own;
   switch (claim.status) {
     case "draft":
       return own ? ["edit", "submit", "delete"] : [];
     case "submitted":
       return [
         ...(own ? (["withdraw"] as ClaimAction[]) : []),
-        ...(reviewer ? (["approve", "reject"] as ClaimAction[]) : []),
+        ...(approver ? (["approve", "reject"] as ClaimAction[]) : []),
       ];
     case "approved":
-      return reviewer ? ["pay", "reject"] : [];
+      // Either hand may stop it before the money leaves.
+      return [
+        ...(payer ? (["pay"] as ClaimAction[]) : []),
+        ...(payer || approver ? (["reject"] as ClaimAction[]) : []),
+      ];
     case "rejected":
       return own ? ["reopen"] : [];
     case "paid":
       return [];
   }
+}
+
+/**
+ * Mirror of the database's `expense_approvers_for`: a claim is approved by the
+ * claimant's department head, or — when the team has no head, or the head is
+ * the one claiming — by anyone carrying org-wide authority. Kept pure so the
+ * UI shows the same buttons the database will actually honour.
+ */
+export function canApproveClaimFor(
+  claimantId: string,
+  viewer: { profileId: string | null; role: string | null },
+  teams: { id: string; manager_id: string | null }[],
+  people: { id: string; team_id: string | null }[],
+): boolean {
+  const me = viewer.profileId;
+  if (!me || me === claimantId) return false;
+  const claimantTeam = people.find((p) => p.id === claimantId)?.team_id ?? null;
+  const head = claimantTeam ? (teams.find((t) => t.id === claimantTeam)?.manager_id ?? null) : null;
+  if (head && head !== claimantId) return me === head;
+  return viewer.role === "admin" || viewer.role === "super_admin" || viewer.role === "cfo";
 }
 
 export type StatusTotals = Record<ExpenseStatus, { count: number; amount: number }>;
@@ -221,6 +299,7 @@ export function claimsToCsv(claims: ClaimRow[], names: Map<string, string>): str
     "Claim #",
     "Claimant",
     "Title",
+    "Kind",
     "Category",
     "Expense date",
     "Amount",
@@ -239,6 +318,7 @@ export function claimsToCsv(claims: ClaimRow[], names: Map<string, string>): str
     c.claim_no,
     names.get(c.claimant_id) ?? c.claimant_id,
     c.title,
+    KIND_LABEL[c.kind],
     CATEGORY_LABEL[c.category] ?? c.category,
     c.expense_date,
     Number(c.amount).toFixed(2),

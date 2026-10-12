@@ -172,7 +172,7 @@ export const useNotifications = (opts?: { enabled?: boolean }) =>
 // Petty cash
 // ---------------------------------------------------------------------------
 const claimCols =
-  "id, claim_no, claimant_id, title, description, category, amount, currency, expense_date, status, submitted_at, reviewed_by, reviewed_at, decision_note, paid_by, paid_at, payment_method, payment_ref, created_at, updated_at";
+  "id, claim_no, claimant_id, title, description, category, kind, amount, currency, expense_date, status, submitted_at, reviewed_by, reviewed_at, decision_note, approved_by, approved_at, paid_by, paid_at, payment_method, payment_ref, created_at, updated_at";
 
 /** Claims visible to the caller: own for employees, everything for reviewers. */
 export const useClaims = (opts?: { enabled?: boolean }) =>

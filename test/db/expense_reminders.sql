@@ -1,6 +1,7 @@
 BEGIN;
 DO $$
 DECLARE kofi uuid := (SELECT id FROM profiles WHERE email='kofi@verve-energyresources.com');
+        ama uuid := (SELECT id FROM profiles WHERE email='ama@verve-energyresources.com');
         kwame uuid := (SELECT id FROM profiles WHERE email='kwame@verve-energyresources.com');
         sa uuid := (SELECT id FROM profiles WHERE email='verveit@verve-energyresources.com');
         claim uuid; n int; chased int;
@@ -26,15 +27,16 @@ BEGIN
   SELECT public.remind_stale_expense_claims() INTO chased;
   PERFORM pg_temp.check(chased=1, 'the stale claim is chased, chased ' || chased);
 
-  -- The CFO is asked to act and the super admin is copied.
-  SELECT count(*) INTO n FROM notifications WHERE recipient_id=kwame AND kind='expense.reminder';
-  PERFORM pg_temp.check(n=1, 'CFO reminded, got ' || n);
+  -- Whoever must act is asked, and the super admin is copied. For a
+  -- submitted claim that is the claimant's department head.
+  SELECT count(*) INTO n FROM notifications WHERE recipient_id=ama AND kind='expense.reminder';
+  PERFORM pg_temp.check(n=1, 'the department head is reminded, got ' || n);
   SELECT count(*) INTO n FROM notifications WHERE recipient_id=sa AND kind='expense.reminder';
   PERFORM pg_temp.check(n=1, 'super admin copied, got ' || n);
   SELECT count(*) INTO n FROM notifications WHERE recipient_id=kofi AND kind='expense.reminder';
   PERFORM pg_temp.check(n=0, 'the claimant is not chased, got ' || n);
   PERFORM pg_temp.check(
-    (SELECT title FROM notifications WHERE recipient_id=kwame AND kind='expense.reminder')
+    (SELECT title FROM notifications WHERE recipient_id=ama AND kind='expense.reminder')
       LIKE '%waiting for approval%', 'the reminder says what is awaited');
 
   -- Running again straight away must not chase twice.
@@ -48,9 +50,10 @@ BEGIN
   SELECT public.remind_stale_expense_claims() INTO chased;
   PERFORM pg_temp.check(chased=1, 'chased again a day later, chased ' || chased);
 
-  -- Approved but unpaid is still chased, with the wording changed.
+  -- Approved but unpaid is still chased, with the wording changed. The head
+  -- approves; from here the CFO is the one holding it.
   DELETE FROM notifications;
-  PERFORM pg_temp.as_user('kwame@verve-energyresources.com');
+  PERFORM pg_temp.as_user('ama@verve-energyresources.com');
   UPDATE expense_claims SET status='approved' WHERE id=claim;
   PERFORM pg_temp.as_service();
   DELETE FROM notifications;
@@ -59,7 +62,7 @@ BEGIN
   PERFORM pg_temp.check(chased=1, 'an approved-but-unpaid claim is chased, chased ' || chased);
   PERFORM pg_temp.check(
     (SELECT title FROM notifications WHERE recipient_id=kwame AND kind='expense.reminder')
-      LIKE '%approved but not paid%', 'the wording switches to payment');
+      LIKE '%approved but not paid%', 'the wording switches to payment, and to the CFO');
 
   -- Once paid, the chasing stops.
   DELETE FROM notifications;
@@ -78,7 +81,7 @@ BEGIN
   INSERT INTO expense_receipts(claim_id,storage_path,file_name,mime_type,size_bytes)
     VALUES (claim, kofi||'/'||claim||'/f.jpg','f.jpg','image/jpeg',10);
   UPDATE expense_claims SET status='submitted' WHERE id=claim;
-  PERFORM pg_temp.as_user('kwame@verve-energyresources.com');
+  PERFORM pg_temp.as_user('ama@verve-energyresources.com');
   UPDATE expense_claims SET status='rejected' WHERE id=claim;
   PERFORM pg_temp.as_service();
   UPDATE expense_claims SET reviewed_at = now() - interval '40 hours' WHERE id=claim;

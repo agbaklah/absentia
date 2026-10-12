@@ -740,4 +740,8 @@ export {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
+  // Exported beside the components, as upstream shadcn does, so `shadcn add`
+  // keeps matching. Costs this file granular Fast Refresh, nothing else.
+  // eslint-disable-next-line react-refresh/only-export-components
+  useSidebar,
 };

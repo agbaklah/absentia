@@ -27,6 +27,7 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth-context";
 import { useClaims, useEntries } from "@/lib/data";
@@ -88,6 +89,14 @@ export function AppSidebar() {
   const claims = useClaims({ enabled: canReviewExpenses });
   const pendingClaims = (claims.data ?? []).filter((c) => c.status === "submitted").length;
   const financeItems = canReviewExpenses ? [pettyCashItem, reviewItem] : [pettyCashItem];
+
+  // Picking a tab folds the sidebar away so the page you asked for gets the
+  // screen: the sheet closes on a phone, and on a wider screen the rail
+  // collapses to icons — tap one, or the trigger in the header, to bring it
+  // back.
+  const { isMobile, setOpen, setOpenMobile } = useSidebar();
+  const foldBack = () => (isMobile ? setOpenMobile(false) : setOpen(false));
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="overflow-hidden">
@@ -119,7 +128,7 @@ export function AppSidebar() {
                       (it.url === "/employees" && path.startsWith("/employees/"))
                     }
                   >
-                    <Link to={it.url}>
+                    <Link to={it.url} onClick={foldBack}>
                       <it.icon className="h-4 w-4" />
                       <span>{it.title}</span>
                       {it.url === "/requests" && pendingCount > 0 && (
@@ -141,7 +150,7 @@ export function AppSidebar() {
               {peopleItems.map((it) => (
                 <SidebarMenuItem key={it.url}>
                   <SidebarMenuButton asChild isActive={path === it.url}>
-                    <Link to={it.url}>
+                    <Link to={it.url} onClick={foldBack}>
                       <it.icon className="h-4 w-4" />
                       <span>{it.title}</span>
                     </Link>
@@ -165,7 +174,7 @@ export function AppSidebar() {
                         : path === it.url || path.startsWith(it.url + "/")
                     }
                   >
-                    <Link to={it.url}>
+                    <Link to={it.url} onClick={foldBack}>
                       <it.icon className="h-4 w-4" />
                       <span>{it.title}</span>
                       {it.url === "/expenses/review" && pendingClaims > 0 && (

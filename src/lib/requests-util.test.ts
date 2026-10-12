@@ -38,9 +38,9 @@ describe("nextDay", () => {
 describe("groupEntries", () => {
   it("merges contiguous same-code, same-status days into one group", () => {
     const groups = groupEntries([
-      entry({ date: "2026-01-01" }),
-      entry({ date: "2026-01-02" }),
-      entry({ date: "2026-01-03" }),
+      entry({ id: "d1", date: "2026-01-01" }),
+      entry({ id: "d2", date: "2026-01-02" }),
+      entry({ id: "d3", date: "2026-01-03" }),
     ]);
     assert.equal(groups.length, 1);
     assert.deepEqual(groups[0], {
@@ -50,6 +50,7 @@ describe("groupEntries", () => {
       code: "L",
       status: "approved",
       note: null,
+      ids: ["d1", "d2", "d3"],
     });
   });
 
@@ -124,6 +125,24 @@ describe("groupEntries", () => {
 
   it("returns an empty array for no entries", () => {
     assert.deepEqual(groupEntries([]), []);
+  });
+
+  it("carries the exact entry ids of each group, so a cancel acts on those rows only", () => {
+    const groups = groupEntries([
+      entry({ id: "a1", date: "2026-01-05" }),
+      entry({ id: "a2", date: "2026-01-06" }),
+      // Same code, inside the 05 → 09 window, but a different request (pending).
+      entry({ id: "b1", date: "2026-01-07", status: "pending" }),
+      entry({ id: "a3", date: "2026-01-08" }),
+      entry({ id: "a4", date: "2026-01-09" }),
+    ]);
+    const approved = groups.filter((g) => g.status === "approved");
+    assert.deepEqual(
+      approved.flatMap((g) => g.ids).sort(),
+      ["a1", "a2", "a3", "a4"],
+      "the approved runs must not claim the pending day that sits between them",
+    );
+    assert.deepEqual(groups.find((g) => g.status === "pending")?.ids, ["b1"]);
   });
 
   it("picks up a decision note that only appears on a later entry of the run", () => {

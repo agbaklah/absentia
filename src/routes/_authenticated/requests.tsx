@@ -50,6 +50,7 @@ import {
   isWorkingDayISO,
 } from "@/lib/leave";
 import { toRequests, groupEntries, nextDay } from "@/lib/requests-util";
+import type { LeaveGroup } from "@/lib/requests-util";
 import { useAuth } from "@/lib/auth-context";
 import { useLeaveValidation } from "@/lib/leave-validation";
 import { LeaveValidationNotice } from "@/components/LeaveValidationNotice";
@@ -995,20 +996,17 @@ function EmployeeRequests() {
   const { profile } = useAuth();
   const entries = useEntries(year);
   const qc = useQueryClient();
-  const [cancelTarget, setCancelTarget] = useState<{
-    start: string;
-    end: string;
-    code: string;
-  } | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<LeaveGroup | null>(null);
   const today = fmtISO(new Date());
 
-  const cancelGroup = async (g: { start: string; end: string; code: string }) => {
+  const cancelGroup = async (g: LeaveGroup) => {
+    // Act on exactly the rows this request is made of — never re-match by date
+    // range, which would also sweep up days belonging to other requests.
+    const inGroup = new Set(g.ids);
     const ids = mine
       .filter(
         (e) =>
-          e.leave_code === g.code &&
-          e.date >= g.start &&
-          e.date <= g.end &&
+          inGroup.has(e.id) &&
           (e.status === "pending" || (e.status === "approved" && e.date >= today)),
       )
       .map((e) => e.id);
@@ -1100,12 +1098,12 @@ function EmployeeRequests() {
                 <div className="flex items-center gap-2">
                   {(g.status === "pending" || (g.status === "approved" && g.end >= today)) && (
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                      className="h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => setCancelTarget(g)}
                     >
-                      Cancel
+                      {g.status === "approved" ? "Give up these days" : "Withdraw"}
                     </Button>
                   )}
                   <Badge variant={statusVariant[g.status]}>{g.status}</Badge>
@@ -1119,17 +1117,31 @@ function EmployeeRequests() {
       <AlertDialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel this leave?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {cancelTarget?.status === "approved"
+                ? "Give up this approved leave?"
+                : "Withdraw this request?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {cancelTarget &&
-                (cancelTarget.start === cancelTarget.end
-                  ? fmtDayFull(cancelTarget.start)
-                  : `${fmtDayShort(cancelTarget.start)} → ${fmtDayShort(cancelTarget.end)}`)}
-              . Days already taken stay as they are; your manager will be notified.
+              {cancelTarget && (
+                <>
+                  <span className="font-medium text-foreground">
+                    {cancelTarget.start === cancelTarget.end
+                      ? fmtDayFull(cancelTarget.start)
+                      : `${fmtDayShort(cancelTarget.start)} → ${fmtDayShort(cancelTarget.end)}`}
+                    {" · "}
+                    {cancelTarget.days} working day{cancelTarget.days !== 1 ? "s" : ""}
+                  </span>
+                  {cancelTarget.status === "approved"
+                    ? " was already approved. Giving it up releases those days back to your balance and cannot be undone here — you would have to request them again, and your manager will be notified."
+                    : " has not been decided yet. Withdrawing it takes it out of your manager’s queue."}
+                  {" Days already taken stay as they are."}
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogCancel>Keep my leave</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -1138,7 +1150,7 @@ function EmployeeRequests() {
                 if (t) void cancelGroup(t);
               }}
             >
-              Cancel leave
+              {cancelTarget?.status === "approved" ? "Yes, give up the days" : "Withdraw request"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

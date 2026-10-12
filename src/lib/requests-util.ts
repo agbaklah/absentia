@@ -12,6 +12,8 @@ export type LeaveGroup = {
   code: string;
   status: EntryRow["status"];
   note: string | null; // reviewer's decision comment, if any
+  /** The exact entry rows this group was built from — the unit a cancel acts on. */
+  ids: string[];
 };
 
 /**
@@ -33,6 +35,7 @@ export function groupEntries(entries: EntryRow[]): LeaveGroup[] {
     ) {
       last.end = e.date;
       last.days += days;
+      last.ids.push(e.id);
       if (!last.note && e.decision_note) last.note = e.decision_note;
     } else {
       groups.push({
@@ -42,6 +45,7 @@ export function groupEntries(entries: EntryRow[]): LeaveGroup[] {
         code: e.leave_code,
         status: e.status,
         note: e.decision_note ?? null,
+        ids: [e.id],
       });
     }
   }

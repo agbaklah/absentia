@@ -2,6 +2,13 @@ node_modules
 dist
 .output
 .vinxi
+.vercel
+.tanstack
+.nitro
+.wrangler
+.freebuff
+backups
+brag-output
 pnpm-lock.yaml
 package-lock.json
 bun.lock

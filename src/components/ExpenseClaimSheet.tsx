@@ -459,6 +459,51 @@ export function ExpenseClaimSheet({
                     </div>
                   </div>
                 )}
+
+                {/* The claimant closing out a claim the CFO never recorded -- */}
+                {can("confirmReceipt") && (
+                  <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/30">
+                    <div className="text-sm font-medium">Were you paid?</div>
+                    <p className="text-xs text-muted-foreground">
+                      This was approved over a day ago and the CFO has not recorded a payment. If
+                      the money has reached you, say so and the claim is closed. The CFO is told, so
+                      they can match it to the bank.
+                    </p>
+                    <div className="space-y-1">
+                      <Label className="text-xs">How did it arrive?</Label>
+                      <Select value={method} onValueChange={(v) => setMethod(v as PaymentMethod)}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_METHODS.map((m) => (
+                            <SelectItem key={m.code} value={m.code}>
+                              {m.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      disabled={!!busy}
+                      className="w-full"
+                      onClick={() =>
+                        transition(
+                          "confirmReceipt",
+                          { status: "paid", payment_method: method },
+                          `Claim #${claim.claim_no} closed — the CFO has been told`,
+                        )
+                      }
+                    >
+                      {busy === "confirmReceipt" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Banknote className="h-4 w-4" />
+                      )}
+                      Yes, I received this
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* Owner controls -------------------------------------------- */}

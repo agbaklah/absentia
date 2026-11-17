@@ -586,6 +586,7 @@ export type Database = {
           last_reminded_at: string | null;
           paid_at: string | null;
           paid_by: string | null;
+          paid_confirmed_by_recipient: boolean;
           payment_method: Database["public"]["Enums"]["payment_method"] | null;
           payment_ref: string | null;
           reviewed_at: string | null;
@@ -612,6 +613,7 @@ export type Database = {
           last_reminded_at?: string | null;
           paid_at?: string | null;
           paid_by?: string | null;
+          paid_confirmed_by_recipient?: boolean;
           payment_method?: Database["public"]["Enums"]["payment_method"] | null;
           payment_ref?: string | null;
           reviewed_at?: string | null;
@@ -638,6 +640,7 @@ export type Database = {
           last_reminded_at?: string | null;
           paid_at?: string | null;
           paid_by?: string | null;
+          paid_confirmed_by_recipient?: boolean;
           payment_method?: Database["public"]["Enums"]["payment_method"] | null;
           payment_ref?: string | null;
           reviewed_at?: string | null;
@@ -1210,6 +1213,7 @@ export type Database = {
       };
       can_approve_claim_for: { Args: { _claimant: string }; Returns: boolean };
       can_approve_for: { Args: { _employee: string }; Returns: boolean };
+      can_confirm_receipt: { Args: { _claim: string }; Returns: boolean };
       can_decide_expenses: { Args: never; Returns: boolean };
       can_pay_claims: { Args: never; Returns: boolean };
       can_review_expenses: { Args: never; Returns: boolean };
@@ -1277,6 +1281,7 @@ export type Database = {
         Args: { _profile_id: string };
         Returns: Database["public"]["Enums"]["app_role"];
       };
+      receipt_confirmation_delay: { Args: never; Returns: string };
       remind_stale_expense_claims: { Args: never; Returns: number };
       remind_stale_leave_requests: { Args: never; Returns: number };
       resolve_assignee: {

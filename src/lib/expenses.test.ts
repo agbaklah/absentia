@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   actionsFor,
   canApproveClaimFor,
+  canConfirmReceipt,
   canSubmit,
   claimsToCsv,
   formatMoney,
@@ -33,6 +34,7 @@ const base: ClaimRow = {
   decision_note: null,
   approved_by: null,
   approved_at: null,
+  paid_confirmed_by_recipient: false,
   paid_by: null,
   paid_at: null,
   payment_method: null,
@@ -241,5 +243,58 @@ describe("canApproveClaimFor", () => {
       canApproveClaimFor("ghost", { profileId: "kofi", role: "employee" }, teams, people),
       false,
     );
+  });
+});
+
+describe("canConfirmReceipt", () => {
+  const now = new Date("2026-11-17T12:00:00Z");
+  const approved = (hoursAgo: number) => ({
+    ...base,
+    status: "approved" as const,
+    approved_at: new Date(now.getTime() - hoursAgo * 3_600_000).toISOString(),
+  });
+  const me = { profileId: "emp" };
+
+  it("holds the claim for the CFO for the first 24 hours", () => {
+    assert.equal(canConfirmReceipt(approved(1), me, now), false);
+    assert.equal(canConfirmReceipt(approved(23.9), me, now), false);
+  });
+
+  it("lets the claimant close it once a day has passed", () => {
+    assert.equal(canConfirmReceipt(approved(24), me, now), true);
+    assert.equal(canConfirmReceipt(approved(72), me, now), true);
+  });
+
+  it("is only ever the claimant's own to confirm", () => {
+    assert.equal(canConfirmReceipt(approved(48), { profileId: "cfo" }, now), false);
+    assert.equal(canConfirmReceipt(approved(48), { profileId: null }, now), false);
+  });
+
+  it("applies only to an approved claim", () => {
+    for (const status of ["draft", "submitted", "rejected", "paid"] as const) {
+      assert.equal(
+        canConfirmReceipt({ ...approved(48), status }, me, now),
+        false,
+        `${status} must not be confirmable`,
+      );
+    }
+  });
+
+  it("needs an approval time to measure from", () => {
+    assert.equal(
+      canConfirmReceipt({ ...base, status: "approved", approved_at: null }, me, now),
+      false,
+    );
+  });
+
+  it("offers the button through actionsFor, and not before its time", () => {
+    const viewer = { profileId: "emp", canApprove: false, canPay: false };
+    assert.deepEqual(actionsFor(approved(48), viewer, now), ["confirmReceipt"]);
+    assert.deepEqual(actionsFor(approved(2), viewer, now), []);
+  });
+
+  it("does not take the pay button away from the CFO", () => {
+    const cfo = { profileId: "cfo", canApprove: false, canPay: true };
+    assert.deepEqual(actionsFor(approved(48), cfo, now), ["pay", "reject"]);
   });
 });

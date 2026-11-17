@@ -32,6 +32,8 @@ export type ClaimRow = {
   decision_note: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  /** true = the claimant confirmed the money arrived; false = the CFO recorded it. */
+  paid_confirmed_by_recipient: boolean;
   paid_by: string | null;
   paid_at: string | null;
   payment_method: PaymentMethod | null;
@@ -53,21 +55,12 @@ export type ReceiptRow = {
 export const EXPENSE_KINDS: {
   code: ExpenseKind;
   label: string;
-  blurb: string;
+  /** One line for the picker tile. */
+  short: string;
   needsReceipt: boolean;
 }[] = [
-  {
-    code: "advance",
-    label: "Advance",
-    blurb: "You need the money up front for an errand. No receipt yet.",
-    needsReceipt: false,
-  },
-  {
-    code: "out_of_pocket",
-    label: "Out-of-pocket",
-    blurb: "You already paid with your own money and want it back.",
-    needsReceipt: true,
-  },
+  { code: "advance", label: "Advance", short: "Money up front", needsReceipt: false },
+  { code: "out_of_pocket", label: "Out-of-pocket", short: "Pay me back", needsReceipt: true },
 ];
 
 export const KIND_LABEL: Record<ExpenseKind, string> = {
@@ -126,7 +119,7 @@ export const STATUS_META: Record<
     tone: "destructive",
     hint: "Not approved. You can edit and resubmit.",
   },
-  paid: { label: "Paid", tone: "default", hint: "Paid out by the CFO." },
+  paid: { label: "Paid", tone: "default", hint: "Settled." },
 };
 
 export const STATUS_ORDER: ExpenseStatus[] = ["submitted", "approved", "paid", "rejected", "draft"];
@@ -209,7 +202,35 @@ export function canSubmit(
 }
 
 export type ClaimAction =
-  "edit" | "submit" | "withdraw" | "delete" | "reopen" | "approve" | "reject" | "pay";
+  | "edit"
+  | "submit"
+  | "withdraw"
+  | "delete"
+  | "reopen"
+  | "approve"
+  | "reject"
+  | "pay"
+  /** The claimant saying the money reached them, when the CFO never recorded it. */
+  | "confirmReceipt";
+
+/** How long the CFO alone may record the payment. Mirrors the database. */
+export const RECEIPT_CONFIRMATION_DELAY_HOURS = 24;
+
+/**
+ * The claimant may close out an approved claim only once the CFO has had a
+ * full day — and at least one chasing email — to record the payment properly.
+ */
+export function canConfirmReceipt(
+  claim: Pick<ClaimRow, "status" | "claimant_id" | "approved_at">,
+  viewer: { profileId: string | null },
+  now: Date = new Date(),
+): boolean {
+  if (claim.status !== "approved") return false;
+  if (viewer.profileId !== claim.claimant_id) return false;
+  if (!claim.approved_at) return false;
+  const hours = (now.getTime() - new Date(claim.approved_at).getTime()) / 3_600_000;
+  return hours >= RECEIPT_CONFIRMATION_DELAY_HOURS;
+}
 
 /**
  * Which buttons a viewer may see for a claim (the DB re-checks all of them).
@@ -217,8 +238,9 @@ export type ClaimAction =
  * approves, the CFO pays.
  */
 export function actionsFor(
-  claim: Pick<ClaimRow, "status" | "claimant_id">,
+  claim: Pick<ClaimRow, "status" | "claimant_id" | "approved_at">,
   viewer: { profileId: string | null; canApprove: boolean; canPay: boolean },
+  now: Date = new Date(),
 ): ClaimAction[] {
   const own = viewer.profileId === claim.claimant_id;
   const approver = viewer.canApprove && !own;
@@ -236,6 +258,7 @@ export function actionsFor(
       return [
         ...(payer ? (["pay"] as ClaimAction[]) : []),
         ...(payer || approver ? (["reject"] as ClaimAction[]) : []),
+        ...(canConfirmReceipt(claim, viewer, now) ? (["confirmReceipt"] as ClaimAction[]) : []),
       ];
     case "rejected":
       return own ? ["reopen"] : [];
@@ -310,6 +333,7 @@ export function claimsToCsv(claims: ClaimRow[], names: Map<string, string>): str
     "Reviewed at",
     "Decision note",
     "Paid by",
+    "Confirmed by recipient",
     "Paid at",
     "Payment method",
     "Payment ref",
@@ -329,6 +353,7 @@ export function claimsToCsv(claims: ClaimRow[], names: Map<string, string>): str
     c.reviewed_at ?? "",
     c.decision_note ?? "",
     c.paid_by ? (names.get(c.paid_by) ?? c.paid_by) : "",
+    c.paid_confirmed_by_recipient ? "yes — needs reconciling" : "",
     c.paid_at ?? "",
     c.payment_method ? PAYMENT_LABEL[c.payment_method] : "",
     c.payment_ref ?? "",

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, FileText, ImagePlus, Loader2, Trash2, Upload, X } from "lucide-react";
+import { Camera, FileText, Loader2, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,6 +81,10 @@ export function ExpenseClaimDialog({
   const fileInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const [viewing, setViewing] = useState<number | null>(null);
+  /** Category + notes stay folded away; most claims never need them. */
+  const [showExtras, setShowExtras] = useState(false);
+  /** An advance needs no receipt, so its dropzone only appears on request. */
+  const [attachAnyway, setAttachAnyway] = useState(false);
   const [signed, setSigned] = useState<Record<string, string>>({});
 
   // (Re)load form state whenever the dialog opens.
@@ -95,6 +99,8 @@ export function ExpenseClaimDialog({
     setPending([]);
     setRemoved(new Set());
     setBusy(null);
+    setShowExtras(!!claim?.description || (claim?.category ?? "other") !== "other");
+    setAttachAnyway(false);
   }, [open, claim]);
 
   // Free object URLs when previews go away.
@@ -152,6 +158,8 @@ export function ExpenseClaimDialog({
   const parsedAmount = parseAmount(amount);
   const submitCheck = canSubmit({ title, amount: parsedAmount ?? 0, kind }, receiptCount, limit);
   const receiptsRequired = kindNeedsReceipt(kind);
+  const overLimit = !!limit && limit > 0 && (parsedAmount ?? 0) > limit;
+  const showDropzone = receiptsRequired || attachAnyway || receiptCount > 0;
 
   const addFiles = (files: FileList | File[]) => {
     const next: PendingFile[] = [];
@@ -292,27 +300,24 @@ export function ExpenseClaimDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Which is this?</Label>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {EXPENSE_KINDS.map((k) => (
-                <button
-                  key={k.code}
-                  type="button"
-                  onClick={() => setKind(k.code)}
-                  aria-pressed={kind === k.code}
-                  className={cn(
-                    "rounded-lg border p-3 text-left transition-colors",
-                    kind === k.code
-                      ? "border-primary bg-primary/5 ring-1 ring-primary"
-                      : "border-input hover:bg-accent",
-                  )}
-                >
-                  <div className="text-sm font-medium">{k.label}</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">{k.blurb}</div>
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-2 gap-2">
+            {EXPENSE_KINDS.map((k) => (
+              <button
+                key={k.code}
+                type="button"
+                onClick={() => setKind(k.code)}
+                aria-pressed={kind === k.code}
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-left transition-colors",
+                  kind === k.code
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-input hover:bg-accent",
+                )}
+              >
+                <div className="text-sm font-medium">{k.label}</div>
+                <div className="text-xs text-muted-foreground">{k.short}</div>
+              </button>
+            ))}
           </div>
 
           <div className="space-y-1.5">
@@ -335,118 +340,85 @@ export function ExpenseClaimDialog({
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
               />
-              {limit && limit > 0 ? (
-                <p className="text-[11px] text-muted-foreground">
-                  Limit per claim: {formatMoney(limit, currency)}
+              {overLimit && (
+                <p className="text-[11px] text-destructive">
+                  Over the {formatMoney(limit!, currency)} limit per claim.
                 </p>
-              ) : null}
+              )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="claim-date">Expense date</Label>
+              <Label htmlFor="claim-date">{receiptsRequired ? "Date paid" : "Date needed"}</Label>
               <Input
                 id="claim-date"
                 type="date"
                 value={expenseDate}
-                max={fmtISO(new Date())}
+                /* An advance is for an errand still to come, so it may be dated ahead. */
+                max={receiptsRequired ? fmtISO(new Date()) : undefined}
                 onChange={(e) => setExpenseDate(e.target.value)}
               />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {EXPENSE_CATEGORIES.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="claim-desc">Details (optional)</Label>
-            <Textarea
-              id="claim-desc"
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Who, where, why — anything the CFO should know."
-            />
-          </div>
-
           {/* Receipts ---------------------------------------------------- */}
           <div className="space-y-2">
-            <Label>
-              Receipts{receiptsRequired && <span className="text-red-500"> *</span>}{" "}
+            <Label className="block">
+              Receipt{receiptsRequired ? <span className="text-red-500"> *</span> : null}{" "}
               <span className="font-normal text-muted-foreground">
-                ({receiptCount} attached · JPG, PNG, PDF · max 10 MB)
+                {receiptCount > 0
+                  ? `· ${receiptCount} attached`
+                  : receiptsRequired
+                    ? "· required to submit"
+                    : "· not needed for an advance"}
               </span>
             </Label>
-            {receiptCount === 0 &&
-              (receiptsRequired ? (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  A receipt is required — the claim can be saved as a draft, but not submitted,
-                  without one.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  No receipt needed for an advance — there is nothing to show yet. Attach one anyway
-                  if it helps explain the errand.
-                </p>
-              ))}
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => fileInput.current?.click()}
-              onKeyDown={(e) => e.key === "Enter" && fileInput.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragging(false);
-                addFiles(e.dataTransfer.files);
-              }}
-              className={cn(
-                "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center text-sm transition-colors",
-                dragging
-                  ? "border-primary bg-primary/5"
-                  : "border-muted-foreground/30 hover:bg-muted/40",
-              )}
-            >
-              <Upload className="h-5 w-5 text-muted-foreground" />
-              <span>
-                <span className="font-medium text-primary">Choose files</span> or drag them here
-              </span>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => cameraInput.current?.click()}
-              >
-                <Camera className="h-3.5 w-3.5" />
-                Take photo
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
+            {showDropzone && (
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => fileInput.current?.click()}
+                onKeyDown={(e) => e.key === "Enter" && fileInput.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragging(false);
+                  addFiles(e.dataTransfer.files);
+                }}
+                className={cn(
+                  "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed p-3 text-center text-sm transition-colors",
+                  dragging
+                    ? "border-primary bg-primary/5"
+                    : "border-muted-foreground/30 hover:bg-muted/40",
+                )}
               >
-                <ImagePlus className="h-3.5 w-3.5" />
-                Add file
-              </Button>
-            </div>
+                <Upload className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs">
+                  <span className="font-medium text-primary">Choose a file</span> or drag it here ·
+                  JPG, PNG, PDF
+                </span>
+              </div>
+            )}
+            {!showDropzone && (
+              <button
+                type="button"
+                onClick={() => setAttachAnyway(true)}
+                className="block text-xs font-medium text-primary hover:underline"
+              >
+                + Attach one anyway
+              </button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5 sm:hidden"
+              onClick={() => cameraInput.current?.click()}
+            >
+              <Camera className="h-3.5 w-3.5" />
+              Take photo
+            </Button>
             <input
               ref={fileInput}
               type="file"
@@ -497,6 +469,46 @@ export function ExpenseClaimDialog({
               </ul>
             )}
           </div>
+
+          {/* Category and notes are rarely changed, so they stay out of the
+              way until someone wants them. */}
+          {showExtras ? (
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+              <div className="space-y-1.5">
+                <Label>Category</Label>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXPENSE_CATEGORIES.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="claim-desc">Notes</Label>
+                <Textarea
+                  id="claim-desc"
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Who, where, why — anything worth knowing."
+                />
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowExtras(true)}
+              className="block text-xs font-medium text-primary hover:underline"
+            >
+              + Category and notes
+            </button>
+          )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
